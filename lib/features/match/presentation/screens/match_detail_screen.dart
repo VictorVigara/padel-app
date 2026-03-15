@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:padel_app/l10n/app_localizations.dart';
+import 'package:padel_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/domain/models/match_stats.dart';
 import 'package:padel_app/features/match/presentation/providers/match_providers.dart';
+import 'package:padel_app/features/player_profile/presentation/providers/player_search_providers.dart';
+import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
 
 class MatchDetailScreen extends ConsumerWidget {
@@ -17,34 +20,51 @@ class MatchDetailScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final matchAsync = ref.watch(matchDetailProvider(matchId));
     final statsAsync = ref.watch(matchStatsProvider(matchId));
+    final currentUserId = ref.watch(currentUserProvider)?.id;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.matchDetails),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: l10n.edit,
-            onPressed: () => context.push('/matches/$matchId/edit'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: l10n.delete,
-            onPressed: () => _confirmDelete(context, ref, l10n),
-          ),
-        ],
+    return matchAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: Text(l10n.matchDetails)),
+        body: const Center(child: CircularProgressIndicator()),
       ),
-      body: matchAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (match) {
-          if (match == null) {
-            return const Center(child: Text('Match not found'));
-          }
-          final stats = statsAsync.valueOrNull ?? [];
-          return _MatchDetailBody(match: match, stats: stats);
-        },
+      error: (e, _) => Scaffold(
+        appBar: AppBar(title: Text(l10n.matchDetails)),
+        body: Center(child: Text('Error: $e')),
       ),
+      data: (match) {
+        if (match == null) {
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.matchDetails)),
+            body: const Center(child: Text('Match not found')),
+          );
+        }
+        final isCreator = currentUserId == match.createdBy;
+        final stats = statsAsync.valueOrNull ?? [];
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(l10n.matchDetails),
+            actions: [
+              if (isCreator) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  tooltip: l10n.edit,
+                  onPressed: () => context.push('/matches/$matchId/edit'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: l10n.delete,
+                  onPressed: () => _confirmDelete(context, ref, l10n),
+                ),
+              ],
+            ],
+          ),
+          body: _MatchDetailBody(
+            match: match,
+            stats: stats,
+            currentUserId: currentUserId,
+          ),
+        );
+      },
     );
   }
 
@@ -82,41 +102,182 @@ class MatchDetailScreen extends ConsumerWidget {
   }
 }
 
-class _MatchDetailBody extends StatelessWidget {
+class _MatchDetailBody extends ConsumerWidget {
   final PadelMatch match;
   final List<MatchStats> stats;
+  final String? currentUserId;
 
-  const _MatchDetailBody({required this.match, required this.stats});
+  const _MatchDetailBody({
+    required this.match,
+    required this.stats,
+    required this.currentUserId,
+  });
+
+  /// Resolve a player's display name from profile cache.
+  String _resolvePlayerName({
+    required String playerId,
+    required String? currentUserId,
+    required Map<String, Map<String, dynamic>> profileCache,
+    required WidgetRef ref,
+    required AppLocalizations l10n,
+    String? noteFallback,
+  }) {
+    if (playerId == currentUserId) return l10n.you;
+    final cached = profileCache[playerId]?['display_name'] as String?;
+    if (cached != null) return cached;
+    // Trigger async fetch
+    final cache = ref.read(profileCacheProvider);
+    if (!cache.containsKey(playerId)) {
+      final repo = ref.read(profileRepositoryProvider);
+      repo.getProfile(playerId).then((profile) {
+        if (profile != null) {
+          ref.read(profileCacheProvider.notifier).update(
+                (state) => {...state, playerId: profile},
+              );
+        }
+      });
+    }
+    return noteFallback ?? l10n.player;
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final won = match.winnerTeam == 1;
-    final scoreStr = match.setScores.map((s) => s.toString()).join('  ');
+    final profileCache = ref.watch(profileCacheProvider);
 
-    // Parse player info from notes (supports both old and new format)
-    String? opponent1;
-    String? opponent2;
-    String? partnerName;
+    // Determine viewer's team
+    final userOnTeam1 = currentUserId == match.team1Player1Id ||
+        currentUserId == match.team1Player2Id;
+
+    // Perspective-aware result
+    final won = userOnTeam1
+        ? match.winnerTeam == 1
+        : match.winnerTeam == 2;
+
+    // Perspective-aware scores: swap if viewer is on team 2
+    final displayScores = userOnTeam1
+        ? match.setScores
+        : match.setScores
+            .map((s) => SetScore(
+                  team1Games: s.team2Games,
+                  team2Games: s.team1Games,
+                ))
+            .toList();
+    final scoreStr = displayScores.map((s) => s.toString()).join('  ');
+
+    // Parse notes (always from creator's/team1's perspective)
+    String? noteOpp1, noteOpp2, notePartner;
     String? userNotes;
     if (match.notes != null) {
       final noteLines = <String>[];
       for (final line in match.notes!.split('\n')) {
         if (line.startsWith('Opponent 1: ')) {
-          opponent1 = line.substring('Opponent 1: '.length);
+          noteOpp1 = line.substring('Opponent 1: '.length);
         } else if (line.startsWith('Opponent 2: ')) {
-          opponent2 = line.substring('Opponent 2: '.length);
+          noteOpp2 = line.substring('Opponent 2: '.length);
         } else if (line.startsWith('Opponent: ')) {
-          opponent1 = line.substring('Opponent: '.length);
+          noteOpp1 = line.substring('Opponent: '.length);
         } else if (line.startsWith('Partner: ')) {
-          partnerName = line.substring('Partner: '.length);
+          notePartner = line.substring('Partner: '.length);
         } else if (line.startsWith("Opponent's partner: ")) {
-          opponent2 = line.substring("Opponent's partner: ".length);
+          noteOpp2 = line.substring("Opponent's partner: ".length);
         } else {
           noteLines.add(line);
         }
       }
       if (noteLines.isNotEmpty) userNotes = noteLines.join('\n');
+    }
+
+    // Resolve player names based on perspective
+    String? opponent1Name, opponent2Name, partnerName;
+
+    // Helper: check if a player ID is a real linked player (not a fallback to creator)
+    bool isRealPlayer(String? id) =>
+        id != null && id != match.createdBy;
+
+    if (userOnTeam1) {
+      // Creator's perspective — opponents are team 2, use notes as fallback
+      // team2Player1Id might be creator's own ID if opponent wasn't linked
+      if (isRealPlayer(match.team2Player1Id)) {
+        opponent1Name = _resolvePlayerName(
+          playerId: match.team2Player1Id,
+          currentUserId: currentUserId,
+          profileCache: profileCache,
+          ref: ref,
+          l10n: l10n,
+          noteFallback: noteOpp1,
+        );
+      } else {
+        opponent1Name = noteOpp1 ?? l10n.player;
+      }
+      if (match.team2Player2Id != null && isRealPlayer(match.team2Player2Id)) {
+        opponent2Name = _resolvePlayerName(
+          playerId: match.team2Player2Id!,
+          currentUserId: currentUserId,
+          profileCache: profileCache,
+          ref: ref,
+          l10n: l10n,
+          noteFallback: noteOpp2,
+        );
+      } else if (noteOpp2 != null) {
+        opponent2Name = noteOpp2;
+      }
+      if (match.team1Player2Id != null && isRealPlayer(match.team1Player2Id)) {
+        partnerName = _resolvePlayerName(
+          playerId: match.team1Player2Id!,
+          currentUserId: currentUserId,
+          profileCache: profileCache,
+          ref: ref,
+          l10n: l10n,
+          noteFallback: notePartner,
+        );
+      } else if (notePartner != null) {
+        partnerName = notePartner;
+      }
+    } else {
+      // Viewer is on team 2 — opponents are team 1 players
+      opponent1Name = _resolvePlayerName(
+        playerId: match.team1Player1Id,
+        currentUserId: currentUserId,
+        profileCache: profileCache,
+        ref: ref,
+        l10n: l10n,
+        noteFallback: null,
+      );
+      if (match.team1Player2Id != null && isRealPlayer(match.team1Player2Id)) {
+        opponent2Name = _resolvePlayerName(
+          playerId: match.team1Player2Id!,
+          currentUserId: currentUserId,
+          profileCache: profileCache,
+          ref: ref,
+          l10n: l10n,
+          noteFallback: notePartner, // creator's partner = viewer's opponent 2
+        );
+      } else if (notePartner != null) {
+        opponent2Name = notePartner;
+      }
+
+      // Partner is the OTHER team 2 player (not the viewer).
+      // Viewer could be team2Player1 or team2Player2.
+      final viewerIsT2P1 = currentUserId == match.team2Player1Id;
+      final partnerId = viewerIsT2P1
+          ? match.team2Player2Id
+          : match.team2Player1Id;
+      // Note mapping: noteOpp1 = team2Player1 name, noteOpp2 = team2Player2 name
+      final partnerNoteFallback = viewerIsT2P1 ? noteOpp2 : noteOpp1;
+
+      if (partnerId != null && isRealPlayer(partnerId)) {
+        partnerName = _resolvePlayerName(
+          playerId: partnerId,
+          currentUserId: currentUserId,
+          profileCache: profileCache,
+          ref: ref,
+          l10n: l10n,
+          noteFallback: partnerNoteFallback,
+        );
+      } else if (partnerNoteFallback != null) {
+        partnerName = partnerNoteFallback;
+      }
     }
 
     final dateStr =
@@ -182,10 +343,9 @@ class _MatchDetailBody extends StatelessWidget {
                             color: AppColors.onSurfaceVariant,
                           )),
                   const Divider(),
-                  if (opponent1 != null)
-                    _infoRow(isDoubles ? l10n.opponent1 : l10n.opponent, opponent1),
-                  if (opponent2 != null)
-                    _infoRow(l10n.opponent2, opponent2),
+                  _infoRow(isDoubles ? l10n.opponent1 : l10n.opponent, opponent1Name),
+                  if (opponent2Name != null)
+                    _infoRow(l10n.opponent2, opponent2Name),
                   if (partnerName != null)
                     _infoRow(l10n.partner, partnerName),
                 ],

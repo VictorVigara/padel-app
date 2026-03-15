@@ -28,6 +28,7 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _initialized = false;
+  bool _isCreator = true;
 
   // Match info
   DateTime _matchDate = DateTime.now();
@@ -91,6 +92,13 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
     if (_initialized) return;
     _initialized = true;
 
+    final currentUserId = ref.read(currentUserProvider)?.id;
+    _isCreator = currentUserId == match.createdBy;
+
+    // Determine if the current user is on team 1 or team 2
+    final userOnTeam1 = currentUserId == match.team1Player1Id ||
+        currentUserId == match.team1Player2Id;
+
     _matchDate = match.matchDate;
     _locationController.text = match.location ?? '';
     _courtSurface = match.courtSurface ?? 'glass';
@@ -98,43 +106,105 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
     _matchFormat = match.matchFormat;
     _isDoubles =
         match.team1Player2Id != null || match.team2Player2Id != null;
-    _won = match.winnerTeam == 1;
-    _sets = match.setScores.isNotEmpty
-        ? List.of(match.setScores)
-        : [const SetScore(team1Games: 0, team2Games: 0)];
 
-    // Resolve opponent/partner IDs from stored player IDs
-    final userId = match.createdBy;
-    if (match.team2Player1Id != userId) {
-      _opponent1Id = match.team2Player1Id;
-    }
-    if (match.team2Player2Id != null && match.team2Player2Id != userId) {
-      _opponent2Id = match.team2Player2Id;
-    }
-    if (match.team1Player2Id != null && match.team1Player2Id != userId) {
-      _partnerId = match.team1Player2Id;
-    }
-
-    // Parse names from notes (supports both old and new format)
+    // Parse names from notes (always from creator's perspective)
+    String? noteOpp1, noteOpp2, notePartner;
     final noteLines = <String>[];
     if (match.notes != null) {
       for (final line in match.notes!.split('\n')) {
         if (line.startsWith('Opponent 1: ')) {
-          _opponent1Name = line.substring('Opponent 1: '.length);
+          noteOpp1 = line.substring('Opponent 1: '.length);
         } else if (line.startsWith('Opponent 2: ')) {
-          _opponent2Name = line.substring('Opponent 2: '.length);
+          noteOpp2 = line.substring('Opponent 2: '.length);
         } else if (line.startsWith('Opponent: ')) {
-          _opponent1Name = line.substring('Opponent: '.length);
+          noteOpp1 = line.substring('Opponent: '.length);
         } else if (line.startsWith('Partner: ')) {
-          _partnerName = line.substring('Partner: '.length);
+          notePartner = line.substring('Partner: '.length);
         } else if (line.startsWith("Opponent's partner: ")) {
-          _opponent2Name = line.substring("Opponent's partner: ".length);
+          noteOpp2 = line.substring("Opponent's partner: ".length);
         } else {
           noteLines.add(line);
         }
       }
     }
     _notesController.text = noteLines.join('\n');
+
+    if (userOnTeam1) {
+      // Creator's perspective — use notes directly
+      _won = match.winnerTeam == 1;
+      _sets = match.setScores.isNotEmpty
+          ? List.of(match.setScores)
+          : [const SetScore(team1Games: 0, team2Games: 0)];
+
+      _opponent1Name = noteOpp1 ?? '';
+      _opponent2Name = noteOpp2 ?? '';
+      _partnerName = notePartner ?? '';
+
+      if (match.team2Player1Id != match.createdBy) {
+        _opponent1Id = match.team2Player1Id;
+      }
+      if (match.team2Player2Id != null &&
+          match.team2Player2Id != match.createdBy) {
+        _opponent2Id = match.team2Player2Id;
+      }
+      if (match.team1Player2Id != null &&
+          match.team1Player2Id != match.createdBy) {
+        _partnerId = match.team1Player2Id;
+      }
+    } else {
+      // Viewer is on team 2 — swap perspective
+      _won = match.winnerTeam == 2;
+      // Swap set scores so "Your Team" column shows team 2 games
+      _sets = match.setScores.isNotEmpty
+          ? match.setScores
+              .map((s) => SetScore(
+                    team1Games: s.team2Games,
+                    team2Games: s.team1Games,
+                  ))
+              .toList()
+          : [const SetScore(team1Games: 0, team2Games: 0)];
+
+      // Opponents are team 1 players (the creator's team)
+      _opponent1Id = match.team1Player1Id;
+      if (match.team1Player2Id != null) {
+        _opponent2Id = match.team1Player2Id;
+      }
+
+      // Partner is the OTHER team 2 player (not the viewer).
+      final viewerIsT2P1 = currentUserId == match.team2Player1Id;
+      final partnerId = viewerIsT2P1
+          ? match.team2Player2Id
+          : match.team2Player1Id;
+      if (partnerId != null && partnerId != match.createdBy) {
+        _partnerId = partnerId;
+      }
+      // Note fallback for partner: noteOpp1=team2Player1, noteOpp2=team2Player2
+      final partnerNoteFallback = viewerIsT2P1 ? noteOpp2 : noteOpp1;
+
+      // Fetch names — use profiles for linked players, notes for unlinked
+      _opponent1Name = '';
+      _opponent2Name = '';
+      _partnerName = '';
+      _fetchPlayerName(match.team1Player1Id, (name) {
+        if (mounted) setState(() => _opponent1Name = name);
+      });
+      if (match.team1Player2Id != null) {
+        if (match.team1Player2Id != match.createdBy) {
+          _fetchPlayerName(match.team1Player2Id!, (name) {
+            if (mounted) setState(() => _opponent2Name = name);
+          });
+        } else if (notePartner != null) {
+          _opponent2Name = notePartner;
+        }
+      }
+      if (_partnerId != null) {
+        _fetchPlayerName(_partnerId!, (name) {
+          if (mounted) setState(() => _partnerName = name);
+        });
+      } else if (partnerNoteFallback != null) {
+        _partnerName = partnerNoteFallback;
+      }
+    }
 
     // Load stats if present
     if (stats.isNotEmpty) {
@@ -153,6 +223,17 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
       _lobWinners = s.lobWinners;
       _volleyWinners = s.volleyWinners;
     }
+  }
+
+  /// Fetch a player's display name from their profile.
+  void _fetchPlayerName(String playerId, void Function(String) onName) {
+    final repo = ref.read(profileRepositoryProvider);
+    repo.getProfile(playerId).then((profile) {
+      if (profile != null) {
+        final name = profile['display_name'] as String? ?? '';
+        if (name.isNotEmpty) onName(name);
+      }
+    });
   }
 
   Future<void> _pickDate() async {
@@ -202,9 +283,9 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
         matchType: _matchType,
         matchFormat: _matchFormat,
         team1Player1Id: user.id,
-        team1Player2Id: _isDoubles ? (_partnerId ?? user.id) : null,
+        team1Player2Id: _isDoubles ? _partnerId : null,
         team2Player1Id: _opponent1Id ?? user.id,
-        team2Player2Id: _isDoubles ? (_opponent2Id ?? user.id) : null,
+        team2Player2Id: _isDoubles ? _opponent2Id : null,
         winnerTeam: _won ? 1 : 2,
         isCompleted: true,
         setScores: _sets,
@@ -314,8 +395,14 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? l10n.edit : l10n.newMatch)),
-      body: Form(
+      appBar: AppBar(
+        title: Text(_isEditing
+            ? (_isCreator ? l10n.edit : l10n.matchDetails)
+            : l10n.newMatch),
+      ),
+      body: AbsorbPointer(
+        absorbing: !_isCreator && _isEditing,
+        child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -516,21 +603,24 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
 
               const SizedBox(height: 24),
 
-              // --- Save button ---
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveMatch,
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(l10n.save),
-              ),
+              // --- Save button (only for creator) ---
+              if (_isCreator) ...[
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _saveMatch,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.save),
+                ),
+              ],
               const SizedBox(height: 32),
             ],
           ),
         ),
+      ),
       ),
     );
   }

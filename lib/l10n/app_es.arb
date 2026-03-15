@@ -107,5 +107,7 @@
   "unregistered": "No Registrado",
   "playerProfile": "Perfil del Jugador",
   "noPlayersFound": "No se encontraron jugadores",
-  "headToHead": "Cara a Cara"
+  "headToHead": "Cara a Cara",
+  "you": "Tú",
+  "player": "Jugador"
 }

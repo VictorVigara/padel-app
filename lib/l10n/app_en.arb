@@ -107,5 +107,7 @@
   "unregistered": "Unregistered",
   "playerProfile": "Player Profile",
   "noPlayersFound": "No players found",
-  "headToHead": "Head to Head"
+  "headToHead": "Head to Head",
+  "you": "You",
+  "player": "Player"
 }

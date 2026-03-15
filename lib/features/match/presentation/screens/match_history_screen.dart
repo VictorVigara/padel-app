@@ -124,10 +124,11 @@ class _MatchCard extends ConsumerWidget {
 
   const _MatchCard({required this.match, this.onTap});
 
-  /// Extract opponent names from notes as fallback.
-  static (String?, String?) _parseOpponentNotes(String? notes) {
-    String? opp1, opp2;
-    if (notes == null) return (opp1, opp2);
+  /// Parse notes for fallback player names (written from creator's perspective).
+  static ({String? opponent1, String? opponent2, String? partner})
+      _parseNotes(String? notes) {
+    String? opp1, opp2, partner;
+    if (notes == null) return (opponent1: opp1, opponent2: opp2, partner: partner);
     for (final line in notes.split('\n')) {
       if (line.startsWith('Opponent 1: ')) {
         opp1 = line.substring('Opponent 1: '.length);
@@ -137,52 +138,113 @@ class _MatchCard extends ConsumerWidget {
         opp1 = line.substring('Opponent: '.length);
       } else if (line.startsWith("Opponent's partner: ")) {
         opp2 = line.substring("Opponent's partner: ".length);
+      } else if (line.startsWith('Partner: ')) {
+        partner = line.substring('Partner: '.length);
       }
     }
-    return (opp1, opp2);
+    return (opponent1: opp1, opponent2: opp2, partner: partner);
+  }
+
+  /// Resolve a player's display name.
+  /// Priority: "You" > profile cache > notes fallback > "Player".
+  String _resolvePlayerName({
+    required String playerId,
+    required String? currentUserId,
+    required Map<String, Map<String, dynamic>> profileCache,
+    required WidgetRef ref,
+    required AppLocalizations l10n,
+    String? noteFallback,
+  }) {
+    if (playerId == currentUserId) return l10n.you;
+    // Try profile cache
+    final cached = profileCache[playerId]?['display_name'] as String?;
+    if (cached != null) return cached;
+    // Trigger async fetch
+    _fetchProfileIfNeeded(ref, playerId);
+    // Use notes fallback or generic label
+    return noteFallback ?? l10n.player;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final won = match.winnerTeam == 1;
-    final scoreStr = match.setScores.map((s) => s.toString()).join('  ');
-
     final userId = ref.watch(currentUserProvider)?.id;
     final profileCache = ref.watch(profileCacheProvider);
 
-    // Resolve opponent names: prefer profile data, fall back to notes
-    final (noteOpp1, noteOpp2) = _parseOpponentNotes(match.notes);
+    // Determine which team the current user is on
+    final userOnTeam1 = userId == match.team1Player1Id ||
+        userId == match.team1Player2Id;
+    final myTeam = userOnTeam1 ? 1 : 2;
+    final won = match.winnerTeam == myTeam;
 
-    String? opponent1;
-    String? opponent1Id;
-    if (match.team2Player1Id != userId && match.team2Player1Id != match.createdBy) {
-      opponent1Id = match.team2Player1Id;
-      opponent1 = profileCache[opponent1Id]?['display_name'] as String?;
-      // Trigger async fetch if not cached
-      if (opponent1 == null) {
-        _fetchProfileIfNeeded(ref, opponent1Id);
-      }
+    final scoreStr = match.setScores.map((s) => s.toString()).join('  ');
+
+    // Notes are from creator's perspective (creator = team1)
+    final notes = _parseNotes(match.notes);
+
+    // Helper: check if a player ID is a real linked player (not fallback to creator)
+    bool isRealPlayer(String? id) =>
+        id != null && id != match.createdBy;
+
+    // Resolve all player names
+    final team1P1Name = _resolvePlayerName(
+      playerId: match.team1Player1Id,
+      currentUserId: userId,
+      profileCache: profileCache,
+      ref: ref,
+      l10n: l10n,
+      noteFallback: null, // team1Player1 is always the creator
+    );
+
+    String? team1P2Name;
+    if (match.team1Player2Id != null && isRealPlayer(match.team1Player2Id)) {
+      team1P2Name = _resolvePlayerName(
+        playerId: match.team1Player2Id!,
+        currentUserId: userId,
+        profileCache: profileCache,
+        ref: ref,
+        l10n: l10n,
+        noteFallback: notes.partner,
+      );
+    } else if (notes.partner != null) {
+      team1P2Name = notes.partner;
     }
-    opponent1 ??= noteOpp1;
 
-    String? opponent2;
-    if (match.team2Player2Id != null &&
-        match.team2Player2Id != userId &&
-        match.team2Player2Id != match.createdBy) {
-      final opp2Id = match.team2Player2Id!;
-      opponent2 = profileCache[opp2Id]?['display_name'] as String?;
-      if (opponent2 == null) {
-        _fetchProfileIfNeeded(ref, opp2Id);
-      }
+    // team2Player1Id may be creator's ID if opponent wasn't linked from search
+    String team2P1Name;
+    if (isRealPlayer(match.team2Player1Id)) {
+      team2P1Name = _resolvePlayerName(
+        playerId: match.team2Player1Id,
+        currentUserId: userId,
+        profileCache: profileCache,
+        ref: ref,
+        l10n: l10n,
+        noteFallback: notes.opponent1,
+      );
+    } else {
+      team2P1Name = notes.opponent1 ?? l10n.player;
     }
-    opponent2 ??= noteOpp2;
 
-    final opponentDisplay = [opponent1, opponent2]
-        .where((n) => n != null && n.isNotEmpty)
+    String? team2P2Name;
+    if (match.team2Player2Id != null && isRealPlayer(match.team2Player2Id)) {
+      team2P2Name = _resolvePlayerName(
+        playerId: match.team2Player2Id!,
+        currentUserId: userId,
+        profileCache: profileCache,
+        ref: ref,
+        l10n: l10n,
+        noteFallback: notes.opponent2,
+      );
+    } else if (notes.opponent2 != null) {
+      team2P2Name = notes.opponent2;
+    }
+
+    final team1Display = [team1P1Name, team1P2Name]
+        .where((n) => n != null)
         .join(' & ');
-    final opponentName =
-        opponentDisplay.isNotEmpty ? opponentDisplay : l10n.opponent;
+    final team2Display = [team2P1Name, team2P2Name]
+        .where((n) => n != null)
+        .join(' & ');
 
     final dateStr =
         '${match.matchDate.day}/${match.matchDate.month}/${match.matchDate.year}';
@@ -191,6 +253,17 @@ class _MatchCard extends ConsumerWidget {
     final ratingAsync =
         match.id != null ? ref.watch(ratingForMatchProvider(match.id!)) : null;
     final ratingChange = ratingAsync?.valueOrNull?.ratingChange;
+
+    // Determine tappable player IDs for navigation
+    String? tappableId(String playerId) {
+      if (playerId == userId) return null;
+      if (playerId == match.createdBy) return playerId;
+      if (playerId != userId) return playerId;
+      return null;
+    }
+
+    final team1P1Tap = tappableId(match.team1Player1Id);
+    final team2P1Tap = tappableId(match.team2Player1Id);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -202,7 +275,7 @@ class _MatchCard extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header row: result badge + opponent + ELO + date
+              // Header row: result badge + ELO change + date
               Row(
                 children: [
                   Container(
@@ -246,25 +319,7 @@ class _MatchCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  if (ratingChange != null) const SizedBox(width: 8),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: opponent1Id != null
-                          ? () => context.push('/players/$opponent1Id')
-                          : null,
-                      child: Text(
-                        '${l10n.vs} $opponentName',
-                        style:
-                            Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  decoration: opponent1Id != null
-                                      ? TextDecoration.underline
-                                      : null,
-                                ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
+                  const Spacer(),
                   Text(
                     dateStr,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -272,6 +327,26 @@ class _MatchCard extends ConsumerWidget {
                         ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              // Team 1 row
+              _buildTeamRow(
+                context: context,
+                label: userOnTeam1 ? l10n.team1 : l10n.team2,
+                names: team1Display,
+                isUserTeam: userOnTeam1,
+                isWinner: match.winnerTeam == 1,
+                tappablePlayerId: team1P1Tap,
+              ),
+              const SizedBox(height: 4),
+              // Team 2 row
+              _buildTeamRow(
+                context: context,
+                label: userOnTeam1 ? l10n.team2 : l10n.team1,
+                names: team2Display,
+                isUserTeam: !userOnTeam1,
+                isWinner: match.winnerTeam == 2,
+                tappablePlayerId: team2P1Tap,
               ),
               if (scoreStr.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -301,6 +376,54 @@ class _MatchCard extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTeamRow({
+    required BuildContext context,
+    required String label,
+    required String names,
+    required bool isUserTeam,
+    required bool isWinner,
+    String? tappablePlayerId,
+  }) {
+    return Row(
+      children: [
+        if (isWinner)
+          const Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: Icon(Icons.emoji_events, size: 14, color: AppColors.secondary),
+          ),
+        if (!isWinner) const SizedBox(width: 18),
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.onSurfaceVariant,
+              fontWeight: isUserTeam ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: tappablePlayerId != null
+                ? () => context.push('/players/$tappablePlayerId')
+                : null,
+            child: Text(
+              names,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: isUserTeam ? FontWeight.bold : FontWeight.normal,
+                    decoration: tappablePlayerId != null
+                        ? TextDecoration.underline
+                        : null,
+                  ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -745,6 +745,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Head to Head'**
   String get headToHead;
+
+  /// No description provided for @you.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get you;
+
+  /// No description provided for @player.
+  ///
+  /// In en, this message translates to:
+  /// **'Player'**
+  String get player;
 }
 
 class _AppLocalizationsDelegate

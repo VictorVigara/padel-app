@@ -332,4 +332,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get headToHead => 'Head to Head';
+
+  @override
+  String get you => 'You';
+
+  @override
+  String get player => 'Player';
 }

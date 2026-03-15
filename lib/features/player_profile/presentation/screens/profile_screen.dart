@@ -5,6 +5,8 @@ import 'package:padel_app/l10n/app_localizations.dart';
 import 'package:padel_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
+import 'package:padel_app/features/rating/presentation/providers/rating_providers.dart';
+import 'package:padel_app/features/rating/presentation/widgets/rating_chart.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -14,6 +16,7 @@ class ProfileScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final profileAsync = ref.watch(profileProvider);
     final ratingAsync = ref.watch(currentRatingProvider);
+    final ratingHistoryAsync = ref.watch(ratingHistoryProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -70,6 +73,46 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                 ),
                 const SizedBox(height: 24),
+                // Rating history chart
+                ratingHistoryAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                  data: (history) {
+                    if (history.length < 2) {
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            l10n.playMoreMatches,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    }
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.ratingHistory,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            RatingChart(history: history),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
                 _buildInfoCard(context, [
                   _infoRow('Level', _capitalize(profile['level'] as String? ?? 'beginner')),
                   _infoRow('Position', _capitalize(profile['preferred_position'] as String? ?? 'both')),

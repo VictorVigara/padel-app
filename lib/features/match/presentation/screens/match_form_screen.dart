@@ -7,6 +7,9 @@ import 'package:padel_app/features/auth/presentation/providers/auth_providers.da
 import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/domain/models/match_stats.dart';
 import 'package:padel_app/features/match/presentation/providers/match_providers.dart';
+import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
+import 'package:padel_app/features/rating/domain/services/rating_service.dart';
+import 'package:padel_app/features/rating/presentation/providers/rating_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
 
 /// Match form for creating or editing a match.
@@ -222,7 +225,16 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
       if (_isEditing) {
         await repo.updateMatch(match, stats: stats);
       } else {
-        await repo.createMatch(match, stats: stats);
+        final created = await repo.createMatch(match, stats: stats);
+        // Calculate and save ELO rating for new matches
+        final ratingService =
+            RatingService(ref.read(ratingRepositoryProvider));
+        await ratingService.calculateAndSaveRating(
+          userId: user.id,
+          match: created,
+        );
+        ref.invalidate(currentRatingProvider);
+        ref.invalidate(ratingHistoryProvider);
       }
 
       if (mounted) {

@@ -245,4 +245,75 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get vs => 'vs';
+
+  @override
+  String get filterMatches => 'Filtrar Partidos';
+
+  @override
+  String get allResults => 'Todos';
+
+  @override
+  String get allTypes => 'Todos';
+
+  @override
+  String get allSurfaces => 'Todas';
+
+  @override
+  String get dateFrom => 'Desde';
+
+  @override
+  String get dateTo => 'Hasta';
+
+  @override
+  String get clearFilters => 'Limpiar Filtros';
+
+  @override
+  String get ratingHistory => 'Historial de Puntuación';
+
+  @override
+  String get playMoreMatches =>
+      'Juega más partidos para ver tu tendencia de puntuación';
+
+  @override
+  String get noMatchesFilter => 'Ningún partido coincide con tus filtros';
+
+  @override
+  String get totalMatches => 'Partidos Totales';
+
+  @override
+  String get overview => 'Resumen';
+
+  @override
+  String get serveStats => 'Estadísticas de Servicio';
+
+  @override
+  String get shotDistribution => 'Distribución de Tiros';
+
+  @override
+  String get performanceBySurface => 'Por Superficie';
+
+  @override
+  String get performanceByType => 'Por Tipo de Partido';
+
+  @override
+  String get winnersVsErrors => 'Winners vs Errores';
+
+  @override
+  String get noStatsYet =>
+      'Registra partidos con estadísticas para ver tu panel';
+
+  @override
+  String get matchesPlayed => 'Jugados';
+
+  @override
+  String get acesPerMatch => 'Aces / Partido';
+
+  @override
+  String get doubleFaultsPerMatch => 'DF / Partido';
+
+  @override
+  String get avgFirstServe => '% 1er Servicio Prom.';
+
+  @override
+  String get padelShotBreakdown => 'Desglose de Tiros de Pádel';
 }

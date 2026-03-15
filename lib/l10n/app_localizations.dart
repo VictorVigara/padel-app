@@ -571,6 +571,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'vs'**
   String get vs;
+
+  /// No description provided for @filterMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter Matches'**
+  String get filterMatches;
+
+  /// No description provided for @allResults.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get allResults;
+
+  /// No description provided for @allTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get allTypes;
+
+  /// No description provided for @allSurfaces.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get allSurfaces;
+
+  /// No description provided for @dateFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get dateFrom;
+
+  /// No description provided for @dateTo.
+  ///
+  /// In en, this message translates to:
+  /// **'To'**
+  String get dateTo;
+
+  /// No description provided for @clearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Filters'**
+  String get clearFilters;
+
+  /// No description provided for @ratingHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating History'**
+  String get ratingHistory;
+
+  /// No description provided for @playMoreMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Play more matches to see your rating trend'**
+  String get playMoreMatches;
+
+  /// No description provided for @noMatchesFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches match your filters'**
+  String get noMatchesFilter;
+
+  /// No description provided for @totalMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Total Matches'**
+  String get totalMatches;
+
+  /// No description provided for @overview.
+  ///
+  /// In en, this message translates to:
+  /// **'Overview'**
+  String get overview;
+
+  /// No description provided for @serveStats.
+  ///
+  /// In en, this message translates to:
+  /// **'Serve Stats'**
+  String get serveStats;
+
+  /// No description provided for @shotDistribution.
+  ///
+  /// In en, this message translates to:
+  /// **'Shot Distribution'**
+  String get shotDistribution;
+
+  /// No description provided for @performanceBySurface.
+  ///
+  /// In en, this message translates to:
+  /// **'By Surface'**
+  String get performanceBySurface;
+
+  /// No description provided for @performanceByType.
+  ///
+  /// In en, this message translates to:
+  /// **'By Match Type'**
+  String get performanceByType;
+
+  /// No description provided for @winnersVsErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Winners vs Errors'**
+  String get winnersVsErrors;
+
+  /// No description provided for @noStatsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'Record matches with statistics to see your dashboard'**
+  String get noStatsYet;
+
+  /// No description provided for @matchesPlayed.
+  ///
+  /// In en, this message translates to:
+  /// **'Played'**
+  String get matchesPlayed;
+
+  /// No description provided for @acesPerMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Aces / Match'**
+  String get acesPerMatch;
+
+  /// No description provided for @doubleFaultsPerMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'DFs / Match'**
+  String get doubleFaultsPerMatch;
+
+  /// No description provided for @avgFirstServe.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg 1st Serve %'**
+  String get avgFirstServe;
+
+  /// No description provided for @padelShotBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Padel Shot Breakdown'**
+  String get padelShotBreakdown;
 }
 
 class _AppLocalizationsDelegate

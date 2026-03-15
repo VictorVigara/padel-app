@@ -244,4 +244,74 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get vs => 'vs';
+
+  @override
+  String get filterMatches => 'Filter Matches';
+
+  @override
+  String get allResults => 'All';
+
+  @override
+  String get allTypes => 'All';
+
+  @override
+  String get allSurfaces => 'All';
+
+  @override
+  String get dateFrom => 'From';
+
+  @override
+  String get dateTo => 'To';
+
+  @override
+  String get clearFilters => 'Clear Filters';
+
+  @override
+  String get ratingHistory => 'Rating History';
+
+  @override
+  String get playMoreMatches => 'Play more matches to see your rating trend';
+
+  @override
+  String get noMatchesFilter => 'No matches match your filters';
+
+  @override
+  String get totalMatches => 'Total Matches';
+
+  @override
+  String get overview => 'Overview';
+
+  @override
+  String get serveStats => 'Serve Stats';
+
+  @override
+  String get shotDistribution => 'Shot Distribution';
+
+  @override
+  String get performanceBySurface => 'By Surface';
+
+  @override
+  String get performanceByType => 'By Match Type';
+
+  @override
+  String get winnersVsErrors => 'Winners vs Errors';
+
+  @override
+  String get noStatsYet =>
+      'Record matches with statistics to see your dashboard';
+
+  @override
+  String get matchesPlayed => 'Played';
+
+  @override
+  String get acesPerMatch => 'Aces / Match';
+
+  @override
+  String get doubleFaultsPerMatch => 'DFs / Match';
+
+  @override
+  String get avgFirstServe => 'Avg 1st Serve %';
+
+  @override
+  String get padelShotBreakdown => 'Padel Shot Breakdown';
 }

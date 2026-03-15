@@ -316,4 +316,22 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get padelShotBreakdown => 'Desglose de Tiros de Pádel';
+
+  @override
+  String get searchPlayers => 'Buscar Jugadores';
+
+  @override
+  String get selectOpponent => 'Seleccionar Oponente';
+
+  @override
+  String get unregistered => 'No Registrado';
+
+  @override
+  String get playerProfile => 'Perfil del Jugador';
+
+  @override
+  String get noPlayersFound => 'No se encontraron jugadores';
+
+  @override
+  String get headToHead => 'Cara a Cara';
 }

@@ -8,6 +8,7 @@ import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/domain/models/match_stats.dart';
 import 'package:padel_app/features/match/presentation/providers/match_providers.dart';
 import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
+import 'package:padel_app/features/player_profile/presentation/widgets/player_search_field.dart';
 import 'package:padel_app/features/rating/domain/services/rating_service.dart';
 import 'package:padel_app/features/rating/presentation/providers/rating_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
@@ -37,10 +38,13 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
   bool _isDoubles = true;
   bool _won = true;
 
-  // Player names (doubles: partner + 2 opponents; singles: 1 opponent)
-  final _opponent1Controller = TextEditingController();
-  final _opponent2Controller = TextEditingController();
-  final _partnerController = TextEditingController();
+  // Player tracking: name + optional profile ID for registered players
+  String _opponent1Name = '';
+  String? _opponent1Id;
+  String _opponent2Name = '';
+  String? _opponent2Id;
+  String _partnerName = '';
+  String? _partnerId;
   final _notesController = TextEditingController();
 
   // Set scores
@@ -66,9 +70,6 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
   @override
   void dispose() {
     _locationController.dispose();
-    _opponent1Controller.dispose();
-    _opponent2Controller.dispose();
-    _partnerController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -102,23 +103,32 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
         ? List.of(match.setScores)
         : [const SetScore(team1Games: 0, team2Games: 0)];
 
+    // Resolve opponent/partner IDs from stored player IDs
+    final userId = match.createdBy;
+    if (match.team2Player1Id != userId) {
+      _opponent1Id = match.team2Player1Id;
+    }
+    if (match.team2Player2Id != null && match.team2Player2Id != userId) {
+      _opponent2Id = match.team2Player2Id;
+    }
+    if (match.team1Player2Id != null && match.team1Player2Id != userId) {
+      _partnerId = match.team1Player2Id;
+    }
+
     // Parse names from notes (supports both old and new format)
     final noteLines = <String>[];
     if (match.notes != null) {
       for (final line in match.notes!.split('\n')) {
         if (line.startsWith('Opponent 1: ')) {
-          _opponent1Controller.text = line.substring('Opponent 1: '.length);
+          _opponent1Name = line.substring('Opponent 1: '.length);
         } else if (line.startsWith('Opponent 2: ')) {
-          _opponent2Controller.text = line.substring('Opponent 2: '.length);
+          _opponent2Name = line.substring('Opponent 2: '.length);
         } else if (line.startsWith('Opponent: ')) {
-          // Legacy format
-          _opponent1Controller.text = line.substring('Opponent: '.length);
+          _opponent1Name = line.substring('Opponent: '.length);
         } else if (line.startsWith('Partner: ')) {
-          _partnerController.text = line.substring('Partner: '.length);
+          _partnerName = line.substring('Partner: '.length);
         } else if (line.startsWith("Opponent's partner: ")) {
-          // Legacy format
-          _opponent2Controller.text =
-              line.substring("Opponent's partner: ".length);
+          _opponent2Name = line.substring("Opponent's partner: ".length);
         } else {
           noteLines.add(line);
         }
@@ -166,16 +176,16 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Build notes with player info
+      // Build notes with player info (names stored as fallback display)
       final parts = <String>[];
-      if (_opponent1Controller.text.isNotEmpty) {
-        parts.add('Opponent 1: ${_opponent1Controller.text.trim()}');
+      if (_opponent1Name.isNotEmpty) {
+        parts.add('Opponent 1: $_opponent1Name');
       }
-      if (_isDoubles && _opponent2Controller.text.isNotEmpty) {
-        parts.add('Opponent 2: ${_opponent2Controller.text.trim()}');
+      if (_isDoubles && _opponent2Name.isNotEmpty) {
+        parts.add('Opponent 2: $_opponent2Name');
       }
-      if (_isDoubles && _partnerController.text.isNotEmpty) {
-        parts.add('Partner: ${_partnerController.text.trim()}');
+      if (_isDoubles && _partnerName.isNotEmpty) {
+        parts.add('Partner: $_partnerName');
       }
       if (_notesController.text.isNotEmpty) {
         parts.add(_notesController.text.trim());
@@ -192,9 +202,9 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
         matchType: _matchType,
         matchFormat: _matchFormat,
         team1Player1Id: user.id,
-        team1Player2Id: _isDoubles ? user.id : null,
-        team2Player1Id: user.id,
-        team2Player2Id: _isDoubles ? user.id : null,
+        team1Player2Id: _isDoubles ? (_partnerId ?? user.id) : null,
+        team2Player1Id: _opponent1Id ?? user.id,
+        team2Player2Id: _isDoubles ? (_opponent2Id ?? user.id) : null,
         winnerTeam: _won ? 1 : 2,
         isCompleted: true,
         setScores: _sets,
@@ -232,6 +242,10 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
         await ratingService.calculateAndSaveRating(
           userId: user.id,
           match: created,
+          opponentIds: [
+            ?_opponent1Id,
+            if (_isDoubles) ?_opponent2Id,
+          ],
         );
         ref.invalidate(currentRatingProvider);
         ref.invalidate(ratingHistoryProvider);
@@ -348,32 +362,41 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
               // --- Players ---
               _sectionTitle(l10n.players),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _opponent1Controller,
-                decoration: InputDecoration(
-                  labelText: _isDoubles ? l10n.opponent1 : l10n.opponentName,
-                  prefixIcon: const Icon(Icons.person_outline),
-                ),
+              PlayerSearchField(
+                key: ValueKey('opp1_${_isDoubles}_$_initialized'),
+                label: _isDoubles ? l10n.opponent1 : l10n.opponentName,
+                initialName: _opponent1Name,
+                initialPlayerId: _opponent1Id,
+                onPlayerSelected: (id, name) {
+                  _opponent1Id = id;
+                  _opponent1Name = name;
+                },
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
 
               if (_isDoubles) ...[
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _opponent2Controller,
-                  decoration: InputDecoration(
-                    labelText: l10n.opponent2,
-                    prefixIcon: const Icon(Icons.person_outline),
-                  ),
+                PlayerSearchField(
+                  key: ValueKey('opp2_${_isDoubles}_$_initialized'),
+                  label: l10n.opponent2,
+                  initialName: _opponent2Name,
+                  initialPlayerId: _opponent2Id,
+                  onPlayerSelected: (id, name) {
+                    _opponent2Id = id;
+                    _opponent2Name = name;
+                  },
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _partnerController,
-                  decoration: InputDecoration(
-                    labelText: '${l10n.partner} (${l10n.optional})',
-                    prefixIcon: const Icon(Icons.people_outline),
-                  ),
+                PlayerSearchField(
+                  key: ValueKey('partner_${_isDoubles}_$_initialized'),
+                  label: '${l10n.partner} (${l10n.optional})',
+                  initialName: _partnerName,
+                  initialPlayerId: _partnerId,
+                  onPlayerSelected: (id, name) {
+                    _partnerId = id;
+                    _partnerName = name;
+                  },
                 ),
               ],
 

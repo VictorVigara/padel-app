@@ -101,5 +101,11 @@
   "acesPerMatch": "Aces / Partido",
   "doubleFaultsPerMatch": "DF / Partido",
   "avgFirstServe": "% 1er Servicio Prom.",
-  "padelShotBreakdown": "Desglose de Tiros de Pádel"
+  "padelShotBreakdown": "Desglose de Tiros de Pádel",
+  "searchPlayers": "Buscar Jugadores",
+  "selectOpponent": "Seleccionar Oponente",
+  "unregistered": "No Registrado",
+  "playerProfile": "Perfil del Jugador",
+  "noPlayersFound": "No se encontraron jugadores",
+  "headToHead": "Cara a Cara"
 }

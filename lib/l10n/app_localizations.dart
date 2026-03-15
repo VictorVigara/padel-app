@@ -709,6 +709,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Padel Shot Breakdown'**
   String get padelShotBreakdown;
+
+  /// No description provided for @searchPlayers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Players'**
+  String get searchPlayers;
+
+  /// No description provided for @selectOpponent.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Opponent'**
+  String get selectOpponent;
+
+  /// No description provided for @unregistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Unregistered'**
+  String get unregistered;
+
+  /// No description provided for @playerProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Player Profile'**
+  String get playerProfile;
+
+  /// No description provided for @noPlayersFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No players found'**
+  String get noPlayersFound;
+
+  /// No description provided for @headToHead.
+  ///
+  /// In en, this message translates to:
+  /// **'Head to Head'**
+  String get headToHead;
 }
 
 class _AppLocalizationsDelegate

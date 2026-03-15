@@ -9,16 +9,22 @@ class RatingService {
   RatingService(this._ratingRepository);
 
   /// Calculate ELO after a new match and save the rating record.
-  /// Returns the rating change (positive or negative).
+  ///
+  /// [opponentIds] — profile IDs of registered opponents. When provided,
+  /// their real ratings are used instead of the default 1200. Rating records
+  /// are also created for registered opponents.
+  ///
+  /// Returns the rating change for the current user.
   Future<double> calculateAndSaveRating({
     required String userId,
     required PadelMatch match,
+    List<String> opponentIds = const [],
   }) async {
     final latest = await _ratingRepository.getLatestRating(userId);
     final currentRating = latest?.rating ?? EloCalculator.startingRating;
 
-    // MVP: opponent rating defaults to 1200 (no player directory yet)
-    const opponentRating = EloCalculator.startingRating;
+    // Resolve opponent rating — use real ratings when available
+    final opponentRating = await _resolveOpponentRating(opponentIds);
 
     final won = match.winnerTeam == 1;
     final totalSetsPlayed = match.setScores.length;
@@ -42,7 +48,65 @@ class RatingService {
       calculatedAt: DateTime.now(),
     ));
 
+    // Also update registered opponents' ratings
+    for (final oppId in opponentIds) {
+      await _saveOpponentRating(
+        opponentId: oppId,
+        playerRating: currentRating,
+        won: !won, // opponent's result is opposite
+        match: match,
+      );
+    }
+
     return ratingChange;
+  }
+
+  /// Resolve the effective opponent rating from a list of opponent IDs.
+  /// For doubles (2 opponents), uses team average.
+  /// Falls back to 1200 for unregistered opponents.
+  Future<double> _resolveOpponentRating(List<String> opponentIds) async {
+    if (opponentIds.isEmpty) return EloCalculator.startingRating;
+
+    final ratings = <double>[];
+    for (final id in opponentIds) {
+      final latest = await _ratingRepository.getLatestRating(id);
+      ratings.add(latest?.rating ?? EloCalculator.startingRating);
+    }
+
+    if (ratings.length == 1) return ratings.first;
+    return EloCalculator.teamRating(ratings[0], ratings[1]);
+  }
+
+  /// Save a rating record for a registered opponent.
+  Future<void> _saveOpponentRating({
+    required String opponentId,
+    required double playerRating,
+    required bool won,
+    required PadelMatch match,
+  }) async {
+    final latest = await _ratingRepository.getLatestRating(opponentId);
+    final oppRating = latest?.rating ?? EloCalculator.startingRating;
+
+    final totalSetsPlayed = match.setScores.length;
+    final totalSetsInFormat = _maxSetsForFormat(match.matchFormat);
+
+    final newRating = EloCalculator.calculateNewRating(
+      playerRating: oppRating,
+      opponentRating: playerRating,
+      won: won,
+      totalSetsPlayed: totalSetsPlayed,
+      totalSetsInFormat: totalSetsInFormat,
+    );
+
+    final ratingChange = newRating - oppRating;
+
+    await _ratingRepository.insertRating(RatingRecord(
+      playerId: opponentId,
+      rating: newRating,
+      ratingChange: ratingChange,
+      matchId: match.id,
+      calculatedAt: DateTime.now(),
+    ));
   }
 
   int _maxSetsForFormat(String format) {

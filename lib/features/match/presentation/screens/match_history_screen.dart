@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:padel_app/l10n/app_localizations.dart';
+import 'package:padel_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/presentation/providers/match_providers.dart';
 import 'package:padel_app/features/match/presentation/widgets/match_filter_sheet.dart';
+import 'package:padel_app/features/player_profile/presentation/providers/player_search_providers.dart';
+import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
 import 'package:padel_app/features/rating/presentation/providers/rating_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
 
@@ -121,28 +124,60 @@ class _MatchCard extends ConsumerWidget {
 
   const _MatchCard({required this.match, this.onTap});
 
+  /// Extract opponent names from notes as fallback.
+  static (String?, String?) _parseOpponentNotes(String? notes) {
+    String? opp1, opp2;
+    if (notes == null) return (opp1, opp2);
+    for (final line in notes.split('\n')) {
+      if (line.startsWith('Opponent 1: ')) {
+        opp1 = line.substring('Opponent 1: '.length);
+      } else if (line.startsWith('Opponent 2: ')) {
+        opp2 = line.substring('Opponent 2: '.length);
+      } else if (line.startsWith('Opponent: ')) {
+        opp1 = line.substring('Opponent: '.length);
+      } else if (line.startsWith("Opponent's partner: ")) {
+        opp2 = line.substring("Opponent's partner: ".length);
+      }
+    }
+    return (opp1, opp2);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final won = match.winnerTeam == 1;
     final scoreStr = match.setScores.map((s) => s.toString()).join('  ');
 
-    // Extract opponent names from notes (supports old + new format)
+    final userId = ref.watch(currentUserProvider)?.id;
+    final profileCache = ref.watch(profileCacheProvider);
+
+    // Resolve opponent names: prefer profile data, fall back to notes
+    final (noteOpp1, noteOpp2) = _parseOpponentNotes(match.notes);
+
     String? opponent1;
-    String? opponent2;
-    if (match.notes != null) {
-      for (final line in match.notes!.split('\n')) {
-        if (line.startsWith('Opponent 1: ')) {
-          opponent1 = line.substring('Opponent 1: '.length);
-        } else if (line.startsWith('Opponent 2: ')) {
-          opponent2 = line.substring('Opponent 2: '.length);
-        } else if (line.startsWith('Opponent: ')) {
-          opponent1 = line.substring('Opponent: '.length);
-        } else if (line.startsWith("Opponent's partner: ")) {
-          opponent2 = line.substring("Opponent's partner: ".length);
-        }
+    String? opponent1Id;
+    if (match.team2Player1Id != userId && match.team2Player1Id != match.createdBy) {
+      opponent1Id = match.team2Player1Id;
+      opponent1 = profileCache[opponent1Id]?['display_name'] as String?;
+      // Trigger async fetch if not cached
+      if (opponent1 == null) {
+        _fetchProfileIfNeeded(ref, opponent1Id);
       }
     }
+    opponent1 ??= noteOpp1;
+
+    String? opponent2;
+    if (match.team2Player2Id != null &&
+        match.team2Player2Id != userId &&
+        match.team2Player2Id != match.createdBy) {
+      final opp2Id = match.team2Player2Id!;
+      opponent2 = profileCache[opp2Id]?['display_name'] as String?;
+      if (opponent2 == null) {
+        _fetchProfileIfNeeded(ref, opp2Id);
+      }
+    }
+    opponent2 ??= noteOpp2;
+
     final opponentDisplay = [opponent1, opponent2]
         .where((n) => n != null && n.isNotEmpty)
         .join(' & ');
@@ -213,13 +248,21 @@ class _MatchCard extends ConsumerWidget {
                     ),
                   if (ratingChange != null) const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      '${l10n.vs} $opponentName',
-                      style:
-                          Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                      overflow: TextOverflow.ellipsis,
+                    child: GestureDetector(
+                      onTap: opponent1Id != null
+                          ? () => context.push('/players/$opponent1Id')
+                          : null,
+                      child: Text(
+                        '${l10n.vs} $opponentName',
+                        style:
+                            Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  decoration: opponent1Id != null
+                                      ? TextDecoration.underline
+                                      : null,
+                                ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                   Text(
@@ -259,6 +302,20 @@ class _MatchCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Fetch a profile and add to cache if not already present.
+  void _fetchProfileIfNeeded(WidgetRef ref, String playerId) {
+    final cache = ref.read(profileCacheProvider);
+    if (cache.containsKey(playerId)) return;
+    final repo = ref.read(profileRepositoryProvider);
+    repo.getProfile(playerId).then((profile) {
+      if (profile != null) {
+        ref.read(profileCacheProvider.notifier).update(
+              (state) => {...state, playerId: profile},
+            );
+      }
+    });
   }
 
   Widget _chip(IconData icon, String label) {

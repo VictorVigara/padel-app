@@ -8,6 +8,7 @@ import 'package:padel_app/features/match/presentation/screens/match_form_screen.
 import 'package:padel_app/features/match/presentation/screens/match_history_screen.dart';
 import 'package:padel_app/features/statistics/presentation/screens/stats_dashboard_screen.dart';
 import 'package:padel_app/features/player_profile/presentation/screens/edit_profile_screen.dart';
+import 'package:padel_app/features/player_profile/presentation/screens/player_profile_screen.dart';
 import 'package:padel_app/features/player_profile/presentation/screens/profile_screen.dart';
 import 'package:padel_app/features/player_profile/presentation/screens/profile_setup_screen.dart';
 import 'package:padel_app/core/widgets/app_shell.dart';
@@ -92,6 +93,13 @@ class AppRouter {
         path: '/profile/edit',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/players/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => PlayerProfileScreen(
+          playerId: state.pathParameters['id']!,
+        ),
       ),
     ],
   );

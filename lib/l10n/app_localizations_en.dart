@@ -314,4 +314,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get padelShotBreakdown => 'Padel Shot Breakdown';
+
+  @override
+  String get searchPlayers => 'Search Players';
+
+  @override
+  String get selectOpponent => 'Select Opponent';
+
+  @override
+  String get unregistered => 'Unregistered';
+
+  @override
+  String get playerProfile => 'Player Profile';
+
+  @override
+  String get noPlayersFound => 'No players found';
+
+  @override
+  String get headToHead => 'Head to Head';
 }

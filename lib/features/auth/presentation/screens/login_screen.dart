@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:padel_app/l10n/app_localizations.dart';
 import 'package:padel_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
@@ -41,8 +44,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-    } catch (e) {
-      setState(() => _error = e.toString());
+    } on AuthException catch (e) {
+      if (mounted) {
+        final msg = e.message.toLowerCase();
+        final l10n = AppLocalizations.of(context)!;
+        String friendly;
+        if (msg.contains('invalid login') || msg.contains('invalid credentials')) {
+          friendly = l10n.invalidCredentials;
+        } else {
+          friendly = l10n.loginFailed;
+        }
+        setState(() => _error = friendly);
+      }
+    } on SocketException catch (_) {
+      if (mounted) {
+        setState(() => _error = AppLocalizations.of(context)!.networkError);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = AppLocalizations.of(context)!.loginFailed);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -89,10 +110,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Email is required';
+                          return l10n.emailRequired;
                         }
                         if (!value.contains('@')) {
-                          return 'Enter a valid email';
+                          return l10n.invalidEmail;
                         }
                         return null;
                       },
@@ -117,7 +138,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Password is required';
+                          return l10n.passwordRequired;
                         }
                         return null;
                       },

@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:padel_app/l10n/app_localizations.dart';
 import 'package:padel_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
@@ -40,16 +43,51 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     try {
       final repo = ref.read(authRepositoryProvider);
-      await repo.signUp(
+      // Check for duplicate display name
+      final nameTaken = await repo.isDisplayNameTaken(_nameController.text.trim());
+      if (nameTaken) {
+        if (mounted) {
+          setState(() => _error = AppLocalizations.of(context)!.nameAlreadyTaken);
+        }
+        return;
+      }
+      final response = await repo.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         displayName: _nameController.text.trim(),
       );
+      // Supabase returns success but empty identities for duplicate emails
+      if (response.user?.identities?.isEmpty ?? false) {
+        if (mounted) {
+          setState(() => _error = AppLocalizations.of(context)!.emailAlreadyInUse);
+        }
+        return;
+      }
       if (mounted) {
         setState(() => _success = true);
       }
-    } catch (e) {
-      setState(() => _error = e.toString());
+    } on AuthException catch (e) {
+      if (mounted) {
+        final msg = e.message.toLowerCase();
+        final l10n = AppLocalizations.of(context)!;
+        String friendly;
+        if (msg.contains('already registered') || msg.contains('already exists')) {
+          friendly = l10n.emailAlreadyInUse;
+        } else if (msg.contains('password')) {
+          friendly = l10n.passwordTooShort;
+        } else {
+          friendly = l10n.registrationFailed;
+        }
+        setState(() => _error = friendly);
+      }
+    } on SocketException catch (_) {
+      if (mounted) {
+        setState(() => _error = AppLocalizations.of(context)!.networkError);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = AppLocalizations.of(context)!.registrationFailed);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -70,7 +108,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const Icon(Icons.mark_email_read, size: 80, color: AppColors.primaryLight),
                 const SizedBox(height: 24),
                 Text(
-                  'Check your email to confirm your account!',
+                  AppLocalizations.of(context)!.checkEmailConfirm,
                   style: Theme.of(context).textTheme.titleLarge,
                   textAlign: TextAlign.center,
                 ),
@@ -121,7 +159,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Name is required';
+                          return l10n.nameRequired;
                         }
                         return null;
                       },
@@ -137,10 +175,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Email is required';
+                          return l10n.emailRequired;
                         }
                         if (!value.contains('@')) {
-                          return 'Enter a valid email';
+                          return l10n.invalidEmail;
                         }
                         return null;
                       },
@@ -165,7 +203,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.length < 6) {
-                          return 'Password must be at least 6 characters';
+                          return l10n.passwordTooShort;
                         }
                         return null;
                       },

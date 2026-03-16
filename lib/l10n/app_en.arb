@@ -109,5 +109,17 @@
   "noPlayersFound": "No players found",
   "headToHead": "Head to Head",
   "you": "You",
-  "player": "Player"
+  "player": "Player",
+  "emailAlreadyInUse": "This email is already registered. Try logging in instead.",
+  "invalidCredentials": "Incorrect email or password",
+  "networkError": "Connection error. Check your internet and try again.",
+  "registrationFailed": "Registration failed. Please try again.",
+  "loginFailed": "Login failed. Please try again.",
+  "passwordTooShort": "Password must be at least 6 characters",
+  "nameRequired": "Name is required",
+  "emailRequired": "Email is required",
+  "invalidEmail": "Enter a valid email",
+  "passwordRequired": "Password is required",
+  "checkEmailConfirm": "Check your email to confirm your account!",
+  "nameAlreadyTaken": "This name is already taken. Choose a different one."
 }

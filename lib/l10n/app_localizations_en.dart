@@ -338,4 +338,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get player => 'Player';
+
+  @override
+  String get emailAlreadyInUse =>
+      'This email is already registered. Try logging in instead.';
+
+  @override
+  String get invalidCredentials => 'Incorrect email or password';
+
+  @override
+  String get networkError =>
+      'Connection error. Check your internet and try again.';
+
+  @override
+  String get registrationFailed => 'Registration failed. Please try again.';
+
+  @override
+  String get loginFailed => 'Login failed. Please try again.';
+
+  @override
+  String get passwordTooShort => 'Password must be at least 6 characters';
+
+  @override
+  String get nameRequired => 'Name is required';
+
+  @override
+  String get emailRequired => 'Email is required';
+
+  @override
+  String get invalidEmail => 'Enter a valid email';
+
+  @override
+  String get passwordRequired => 'Password is required';
+
+  @override
+  String get checkEmailConfirm => 'Check your email to confirm your account!';
+
+  @override
+  String get nameAlreadyTaken =>
+      'This name is already taken. Choose a different one.';
 }

@@ -340,4 +340,43 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get player => 'Jugador';
+
+  @override
+  String get emailAlreadyInUse =>
+      'Este correo ya está registrado. Intenta iniciar sesión.';
+
+  @override
+  String get invalidCredentials => 'Correo o contraseña incorrectos';
+
+  @override
+  String get networkError =>
+      'Error de conexión. Verifica tu internet e intenta de nuevo.';
+
+  @override
+  String get registrationFailed => 'Error en el registro. Intenta de nuevo.';
+
+  @override
+  String get loginFailed => 'Error al iniciar sesión. Intenta de nuevo.';
+
+  @override
+  String get passwordTooShort =>
+      'La contraseña debe tener al menos 6 caracteres';
+
+  @override
+  String get nameRequired => 'El nombre es obligatorio';
+
+  @override
+  String get emailRequired => 'El correo es obligatorio';
+
+  @override
+  String get invalidEmail => 'Introduce un correo válido';
+
+  @override
+  String get passwordRequired => 'La contraseña es obligatoria';
+
+  @override
+  String get checkEmailConfirm => '¡Revisa tu correo para confirmar tu cuenta!';
+
+  @override
+  String get nameAlreadyTaken => 'Este nombre ya está en uso. Elige otro.';
 }

@@ -109,5 +109,17 @@
   "noPlayersFound": "No se encontraron jugadores",
   "headToHead": "Cara a Cara",
   "you": "Tú",
-  "player": "Jugador"
+  "player": "Jugador",
+  "emailAlreadyInUse": "Este correo ya está registrado. Intenta iniciar sesión.",
+  "invalidCredentials": "Correo o contraseña incorrectos",
+  "networkError": "Error de conexión. Verifica tu internet e intenta de nuevo.",
+  "registrationFailed": "Error en el registro. Intenta de nuevo.",
+  "loginFailed": "Error al iniciar sesión. Intenta de nuevo.",
+  "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+  "nameRequired": "El nombre es obligatorio",
+  "emailRequired": "El correo es obligatorio",
+  "invalidEmail": "Introduce un correo válido",
+  "passwordRequired": "La contraseña es obligatoria",
+  "checkEmailConfirm": "¡Revisa tu correo para confirmar tu cuenta!",
+  "nameAlreadyTaken": "Este nombre ya está en uso. Elige otro."
 }

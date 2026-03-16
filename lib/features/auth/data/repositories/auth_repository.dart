@@ -8,6 +8,16 @@ class AuthRepository {
 
   User? get currentUser => _auth.currentUser;
 
+  /// Check if a display name is already taken by another user.
+  Future<bool> isDisplayNameTaken(String displayName) async {
+    final result = await SupabaseConfig.client
+        .from('profiles')
+        .select('id')
+        .ilike('display_name', displayName)
+        .limit(1);
+    return (result as List).isNotEmpty;
+  }
+
   Future<AuthResponse> signUp({
     required String email,
     required String password,

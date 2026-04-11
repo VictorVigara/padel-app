@@ -23,19 +23,13 @@ image = (
 )
 
 
-@app.function(image=image, secrets=[modal.Secret.from_name("padel-secrets")])
-def process_job(job_id: str) -> None:
-    """Process a single queued job. Called by the poller."""
-    import asyncio
-    from cv_backend.api.job_queue import poll_once, supabase  # noqa: F401
-    # Sprint 0: poll_once fetches the job by status, not by id.
-    # Sprint 2: pass job_id directly to avoid re-fetching.
-    asyncio.run(poll_once(supabase))
-
-
 @app.function(image=image, secrets=[modal.Secret.from_name("padel-secrets")], schedule=modal.Period(seconds=30))
 def run_poller() -> None:
-    """Scheduled function — polls for queued jobs every 30 seconds."""
+    """Scheduled function — polls for one queued job every 30 seconds.
+
+    job_queue.poll_once() creates its own Supabase client from env vars
+    (injected via the padel-secrets Modal secret).
+    """
     import asyncio
-    from cv_backend.api.job_queue import poll_once, supabase  # noqa: F401
-    asyncio.run(poll_once(supabase))
+    from cv_backend.api.job_queue import poll_once, _get_supabase_client
+    asyncio.run(poll_once(_get_supabase_client()))

@@ -49,12 +49,13 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 - [ ] On-device compression after recording (~5 Mbps, target 400–800 MB for 90-min match)
 
 **Upload:**
-- [ ] Resumable upload to Supabase Storage (handle interrupted connections)
+- [ ] Upload compressed video directly to Cloudflare R2 (pre-signed URL flow, S3-compatible)
+- [ ] Resumable upload — handle interrupted connections
 - [ ] Background upload — continues if user locks phone or switches apps
-- [ ] Insert row in `processing_jobs` after upload completes
+- [ ] Insert row in `processing_jobs` (with R2 object URL) after upload completes
 - [ ] "Match pending analysis" state visible in match history
 
-**Done when:** A real 90-min match video is uploaded, compressed, stored in Supabase, and a processing job is queued. Upload completes in under 10 minutes on 4G.
+**Done when:** A real 90-min match video is uploaded, compressed, stored in Cloudflare R2, and a processing job is queued. Upload completes in under 10 minutes on 4G.
 
 ---
 
@@ -66,7 +67,7 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 - [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1fps
 - [ ] Aggregate to heatmap grid (20×10), total distance, court coverage %
 - [ ] Write `AnalysisResult` JSON to `match_analyses` table in Supabase
-- [ ] Delete raw video from Supabase Storage after successful processing
+- [ ] Delete raw video from Cloudflare R2 after successful processing
 - [ ] Push notification to phone when done
 - [ ] Error handling: bad angle, <4 players, timeout, 3-retry exhaustion
 - [ ] Processing progress updates (% complete) written to `processing_jobs`

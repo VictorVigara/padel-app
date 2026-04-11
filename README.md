@@ -34,6 +34,7 @@ AI-powered padel match analytics using just an iPhone camera. Place your phone i
 
 - Flutter SDK 3.x
 - A Supabase project with all migrations applied (see Database Setup below)
+- A Cloudflare R2 bucket for video storage (see External Services below)
 
 ### Run the Flutter app
 
@@ -52,6 +53,18 @@ Run the SQL migrations in order against your Supabase project:
 3. `supabase/migrations/20260315000003_ratings_cascade_fix.sql` — FK cascade fix
 4. `supabase/migrations/20260411000001_processing_jobs.sql` — Async CV job queue table
 5. `supabase/migrations/20260411000002_match_analyses.sql` — CV analysis results table
+
+### External Services
+
+| Service | Purpose | Free tier |
+|---|---|---|
+| [Supabase](https://supabase.com) | Auth, PostgreSQL, Realtime | 500 MB DB, 2 projects |
+| [Cloudflare R2](https://developers.cloudflare.com/r2/) | Video storage (400–800 MB per match) | 10 GB storage, no egress fees |
+| [Modal](https://modal.com) | Serverless GPU for CV pipeline | $30/month credit |
+
+**Why R2 and not Supabase Storage?** Supabase Storage has a 50 MB file size limit
+on the free tier. Match videos are 400–800 MB compressed. R2 has no per-file size
+limit and charges no egress fees (important — the CV backend downloads each video).
 
 ## Project Structure
 

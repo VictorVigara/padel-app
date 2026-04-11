@@ -66,23 +66,31 @@ cv_backend/                 ← Python FastAPI server (cloud GPU) — SCAFFOLDED
 iPhone (Flutter)
   └── Record video (locked settings: 1080p, 30fps, fixed exposure)
   └── Compress on-device before upload (~400–800 MB per 90-min match)
-  └── Upload to Supabase Storage
+  └── Request pre-signed upload URL from backend (or generate client-side)
+  └── Upload directly to Cloudflare R2 (S3-compatible, no size limit on free tier)
+  └── Insert row in processing_jobs with R2 object URL
   └── Poll or receive push notification for results
   └── Render JSON results (heatmaps, stats)
           │
           ▼
-Supabase
+Supabase  (auth + database + realtime only — NOT used for video storage)
   └── Auth (existing)
   └── Database: matches, players, match_analyses, processing_jobs
-  └── Storage: compressed match videos (deleted after processing)
   └── Realtime / push: notify app when analysis is done
+          │
+          ▼
+Cloudflare R2  (video storage — S3-compatible, no egress fees)
+  └── Stores compressed match videos transiently (deleted after processing)
+  └── Free tier: 10 GB storage, 1M Class A ops/month — plenty for prototyping
+  └── No egress fee: backend downloads video at no cost
           │
           ▼
 FastAPI backend (cloud GPU — Modal now, RunPod later)
   └── Polls processing_jobs table for queued jobs
-  └── Runs analyze_match() pipeline
+  └── Downloads video from R2 using boto3 (S3-compatible endpoint)
+  └── Runs analyze_match() pipeline on local copy
   └── Writes AnalysisResult back to Supabase
-  └── Deletes raw video from Storage after success
+  └── Deletes raw video from R2 after success
 ```
 
 ### Job queue (Supabase-based, no Redis needed)
@@ -219,10 +227,15 @@ When taking control of the camera in Flutter, lock these settings:
 - RunPod cost: ~$1.04–1.60/user/month
 - Target price: ~€10–15/month subscription → healthy margin on RunPod
 
-### Video storage cost (Supabase)
-- Delete raw video immediately after processing completes
-- Keep only results JSON in DB — no ongoing storage cost per match
-- Supabase free tier: 1 GB storage (fine for transient video, plenty for JSON)
+### Video storage: Cloudflare R2 (not Supabase Storage)
+Supabase Storage has a 50 MB file size limit — not suitable for match videos
+(400–800 MB compressed). Use Cloudflare R2 instead.
+
+- R2 free tier: 10 GB storage, 1M Class A (write) ops/month, 10M Class B (read) ops/month
+- No egress fee: backend downloads video for free (unlike S3)
+- S3-compatible API: use `boto3` with `endpoint_url=https://<account>.r2.cloudflarestorage.com`
+- Delete raw video from R2 immediately after processing completes
+- Supabase Storage is still used for user avatars / small assets if needed
 
 ---
 
@@ -234,7 +247,7 @@ You are in the EU. Your app records video of real people, including players who 
 - [ ] Privacy policy (what data is collected, retention period, deletion rights)
 - [ ] Consent flow in app — all 4 players should acknowledge before recording starts
 - [ ] Right to erasure — users can delete their account and all associated data
-- [ ] Raw video deleted from Supabase Storage after processing (not optional — minimise data)
+- [ ] Raw video deleted from Cloudflare R2 after processing (not optional — minimise data)
 - [ ] Processing purpose documented: "improve performance analytics, not sold to third parties"
 
 **Practical data retention policy:**
@@ -420,11 +433,18 @@ modal run cv_backend/infra/modal_runner.py --video-path test.mp4
 Required in `.env` (local) and as secrets in CI:
 ```
 SUPABASE_URL=
-SUPABASE_SERVICE_KEY=       # backend only — never in Flutter app
-SUPABASE_ANON_KEY=          # Flutter app (safe to expose)
+SUPABASE_SERVICE_KEY=           # backend only — never in Flutter app
+SUPABASE_ANON_KEY=              # Flutter app (safe to expose)
 MODAL_TOKEN_ID=
 MODAL_TOKEN_SECRET=
+CLOUDFLARE_R2_ACCOUNT_ID=       # backend + Flutter (for pre-signed URL generation)
+CLOUDFLARE_R2_ACCESS_KEY=       # backend only
+CLOUDFLARE_R2_SECRET_KEY=       # backend only
 ```
+
+Flutter app only needs `CLOUDFLARE_R2_ACCOUNT_ID` if it generates pre-signed URLs
+client-side (Sprint 1 decision). If the backend generates pre-signed URLs and hands
+them to the app, none of the R2 credentials go near the Flutter app.
 
 Flutter: use `--dart-define` or a `.env` loader. Never hardcode keys.
 
@@ -516,6 +536,6 @@ Requires four GitHub repository secrets: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`,
 - [x] `pyproject.toml` + uv set up
 - [x] CI/CD workflow written (`.github/workflows/deploy-backend.yml`)
 - [ ] Supabase migrations applied to project (Victor — requires SQL Editor)
-- [ ] `match-videos` Storage bucket created (Victor — requires Supabase dashboard)
+- [ ] Cloudflare R2 bucket created (Victor — requires Cloudflare dashboard; no Supabase Storage bucket needed)
 - [ ] Modal account set up and GPU deployment verified end-to-end
 - [ ] End-to-end smoke test: dummy upload → job queued → stub result in Supabase

@@ -29,9 +29,9 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 - [x] Define Supabase schema additions: `processing_jobs`, `match_analyses` tables
 - [x] Scaffold `cv_backend/` directory structure (pipeline / api / infra separation)
 - [x] Implement provider-agnostic interface: `analyze_match(video_path) → AnalysisResult`
-- [ ] Set up Supabase storage bucket for video files (Victor — apply migrations + create bucket)
+- [x] Set up Supabase storage bucket for video files (using Cloudflare R2 instead — free tier suitable)
 - [x] Scaffold FastAPI app with `/analyze` endpoint (stub, no real CV yet)
-- [ ] Set up Modal account and verify GPU deployment works end-to-end
+- [x] Set up Modal account and verify GPU deployment works end-to-end
 - [x] Set up CI/CD for backend (GitHub Actions → Modal deploy)
 - [x] Update `CLAUDE.md` with any decisions made during sprint
 

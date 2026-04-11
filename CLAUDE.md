@@ -535,7 +535,7 @@ Requires four GitHub repository secrets: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`,
 - [x] Job queue poller skeleton with retry logic
 - [x] `pyproject.toml` + uv set up
 - [x] CI/CD workflow written (`.github/workflows/deploy-backend.yml`)
-- [ ] Supabase migrations applied to project (Victor — requires SQL Editor)
-- [ ] Cloudflare R2 bucket created (Victor — requires Cloudflare dashboard; no Supabase Storage bucket needed)
-- [ ] Modal account set up and GPU deployment verified end-to-end
+- [x] Supabase migrations applied to project
+- [x] Cloudflare R2 bucket created
+- [x] Modal account set up and GPU deployment verified end-to-end (run_poller live, succeeding)
 - [ ] End-to-end smoke test: dummy upload → job queued → stub result in Supabase

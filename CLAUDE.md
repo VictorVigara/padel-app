@@ -25,7 +25,7 @@ padel_app/                  ← Flutter mobile app
       recording/            ← In-app recording — TO BUILD (Sprint 1)
       analysis/             ← Results display — TO BUILD (Sprint 3)
 
-cv_backend/                 ← Python FastAPI server (cloud GPU) — TO BUILD (Sprint 0)
+cv_backend/                 ← Python FastAPI server (cloud GPU) — SCAFFOLDED (Sprint 0 ✓)
   pipeline/
     analyze_match.py        ← Core function, provider-agnostic
     player_tracker.py       ← YOLO11l + DeepOCSORT
@@ -468,3 +468,54 @@ These apply to every session, not just Sprint 0.
 - When a task is completed, mark it `[x]` in ROADMAP.md
 - When a sprint is fully done, add a completion date
 - Never delete tasks — cross them out with a note if they were intentionally dropped
+
+---
+
+## Sprint 0 — Architectural decisions (2026-04-11)
+
+These decisions were made during Sprint 0 and should not be revisited without good reason.
+
+### Python project layout
+`pyproject.toml` lives at the **repo root**, not inside `cv_backend/`. This lets
+hatchling resolve `cv_backend/` as a top-level Python package. Running `uv sync`
+from the repo root installs all dependencies into `.venv/` at the root.
+
+### uv as Python package manager
+Use `uv` for all Python dependency management. Key commands:
+```bash
+uv sync                    # install base deps into .venv
+uv sync --extra cv         # also install heavy CV deps (GPU workers only)
+uv run uvicorn cv_backend.api.main:app --reload   # run locally
+uv run pytest              # run tests
+```
+
+### match_analyses.result is JSONB
+The `result` column in `match_analyses` is JSONB, not typed columns. This keeps
+the schema migration-free as `AnalysisResult` grows (ball tracking Sprint 5,
+rally data, etc.). The CV pipeline serialises `AnalysisResult` with
+`dataclasses.asdict()` before writing to Supabase.
+
+### Job queue — single worker in Sprint 0
+The Sprint 0 poller uses a simple fetch-then-update pattern (not
+`FOR UPDATE SKIP LOCKED`). This is safe because Modal runs a single worker in
+Sprint 0. Add `FOR UPDATE SKIP LOCKED` in Sprint 2 when scaling to multiple
+workers.
+
+### CI/CD workflow
+`.github/workflows/deploy-backend.yml` deploys `cv_backend/infra/modal_runner.py`
+to Modal on every push to `main` that touches `cv_backend/` or `pyproject.toml`.
+Requires four GitHub repository secrets: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`.
+
+### Sprint 0 status (as of 2026-04-11)
+- [x] Flutter app audited — all features complete and working
+- [x] `cv_backend/` scaffolded with provider-agnostic `analyze_match()` stub
+- [x] Supabase migrations written: `processing_jobs`, `match_analyses`
+- [x] FastAPI stub: POST /analyze, GET /analyze/{job_id}
+- [x] Job queue poller skeleton with retry logic
+- [x] `pyproject.toml` + uv set up
+- [x] CI/CD workflow written (`.github/workflows/deploy-backend.yml`)
+- [ ] Supabase migrations applied to project (Victor — requires SQL Editor)
+- [ ] `match-videos` Storage bucket created (Victor — requires Supabase dashboard)
+- [ ] Modal account set up and GPU deployment verified end-to-end
+- [ ] End-to-end smoke test: dummy upload → job queued → stub result in Supabase

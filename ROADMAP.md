@@ -25,15 +25,15 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 ### Sprint 0 — Foundation (2 weeks)
 **Goal:** Clean architecture that everything else plugs into. No new features, just structure.
 
-- [ ] Audit existing Flutter app — document what works, what's unused, dead code
-- [ ] Define Supabase schema additions: `processing_jobs`, `match_analyses` tables
-- [ ] Scaffold `cv_backend/` directory structure (pipeline / api / infra separation)
-- [ ] Implement provider-agnostic interface: `analyze_match(video_path) → AnalysisResult`
-- [ ] Set up Supabase storage bucket for video files
-- [ ] Scaffold FastAPI app with `/analyze` endpoint (stub, no real CV yet)
+- [x] Audit existing Flutter app — document what works, what's unused, dead code
+- [x] Define Supabase schema additions: `processing_jobs`, `match_analyses` tables
+- [x] Scaffold `cv_backend/` directory structure (pipeline / api / infra separation)
+- [x] Implement provider-agnostic interface: `analyze_match(video_path) → AnalysisResult`
+- [ ] Set up Supabase storage bucket for video files (Victor — apply migrations + create bucket)
+- [x] Scaffold FastAPI app with `/analyze` endpoint (stub, no real CV yet)
 - [ ] Set up Modal account and verify GPU deployment works end-to-end
-- [ ] Set up CI/CD for backend (GitHub Actions → Modal deploy)
-- [ ] Update `CLAUDE.md` with any decisions made during sprint
+- [x] Set up CI/CD for backend (GitHub Actions → Modal deploy)
+- [x] Update `CLAUDE.md` with any decisions made during sprint
 
 **Done when:** App can upload a dummy file to Supabase storage, backend receives the job, runs a stub, writes a result row to Supabase.
 

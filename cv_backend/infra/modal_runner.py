@@ -19,6 +19,7 @@ app = modal.App("padel-cv-backend")
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("fastapi", "uvicorn", "supabase", "pydantic", "python-dotenv")
+    .add_local_python_source("cv_backend")  # copies local package into the container
 )
 
 

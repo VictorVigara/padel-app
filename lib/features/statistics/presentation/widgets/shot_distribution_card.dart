@@ -4,6 +4,7 @@ import 'package:padel_app/l10n/app_localizations.dart';
 import 'package:padel_app/core/theme/app_theme.dart';
 import 'package:padel_app/features/statistics/domain/models/aggregated_stats.dart';
 
+// TODO(Sprint 3): replace with CV-generated data from match_analyses result JSONB
 class ShotDistributionCard extends StatelessWidget {
   final ShotDistribution stats;
 

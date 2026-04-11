@@ -82,6 +82,7 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 - [ ] Distance covered per player (styled card with player name)
 - [ ] Court coverage % per player
 - [ ] Link results to existing match history entry
+- [ ] Replace ServeStatsCard and ShotDistributionCard with padel-specific equivalents (smash speed, bandeja frequency, court zone distribution) — these currently show zeros and use tennis-specific fields. CV data in Sprint 2 will populate match_stats with inputSource=cvAuto; update the widgets to consume it.
 - [ ] Processing states: "uploading", "analysing (X% done)", "ready", "failed"
 - [ ] Failed state: clear message, no charge note, option to retry
 - [ ] Basic share: screenshot-friendly results card for WhatsApp/Instagram

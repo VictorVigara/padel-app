@@ -52,6 +52,10 @@ supabase/.branches/
 .env
 *.env
 
+# Python / uv
+.venv/
+uv.lock
+
 # Generated
 .flutter-plugins
 

@@ -31,17 +31,13 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      # Authenticate with Modal using token stored in GitHub secrets.
-      # Add MODAL_TOKEN_ID and MODAL_TOKEN_SECRET in:
-      #   GitHub repo → Settings → Secrets and variables → Actions
-      - name: Authenticate Modal
-        run: uv run modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
-        env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-
+      # Modal reads MODAL_TOKEN_ID and MODAL_TOKEN_SECRET from the environment
+      # directly — no separate auth step needed.
+      # Add these in: GitHub repo → Settings → Secrets and variables → Actions
       - name: Deploy to Modal
         run: uv run modal deploy cv_backend/infra/modal_runner.py
         env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

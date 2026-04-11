@@ -34,6 +34,11 @@ jobs:
       # Modal reads MODAL_TOKEN_ID and MODAL_TOKEN_SECRET from the environment
       # directly — no separate auth step needed.
       # Add these in: GitHub repo → Settings → Secrets and variables → Actions
+      #
+      # The deployed functions also need a Modal secret named "padel-secrets".
+      # Create it once at: modal.com → Secrets → New secret
+      # Keys: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLOUDFLARE_R2_ACCOUNT_ID,
+      #        CLOUDFLARE_R2_ACCESS_KEY, CLOUDFLARE_R2_SECRET_KEY, CLOUDFLARE_R2_BUCKET
       - name: Deploy to Modal
         run: uv run modal deploy cv_backend/infra/modal_runner.py
         env:

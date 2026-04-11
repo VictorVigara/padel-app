@@ -538,4 +538,4 @@ Requires four GitHub repository secrets: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`,
 - [x] Supabase migrations applied to project
 - [x] Cloudflare R2 bucket created
 - [x] Modal account set up and GPU deployment verified end-to-end (run_poller live, succeeding)
-- [ ] End-to-end smoke test: dummy upload → job queued → stub result in Supabase
+- [x] End-to-end smoke test: dummy upload → job queued → stub result in Supabase ✓

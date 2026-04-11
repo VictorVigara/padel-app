@@ -2,7 +2,7 @@
 
 AI-powered padel match analytics using just an iPhone camera. Place your phone in the back corner of any court, record a match, and automatically receive player heatmaps, distance stats, and rally analysis. No club infrastructure required.
 
-> **Sprint 0 complete** — Flutter app, Supabase schema, CV backend scaffold, FastAPI stub, job queue poller running live on Modal, and CI/CD pipeline all done. One remaining item: end-to-end smoke test. Real video processing begins in Sprint 2. See [ROADMAP.md](ROADMAP.md) for the full sprint plan.
+> **Sprint 0 complete (2026-04-11)** — Flutter app, Supabase schema, CV backend scaffold, FastAPI stub, job queue poller running live on Modal, CI/CD pipeline, and end-to-end smoke test all done. Starting Sprint 1 — recording screen and R2 upload pipeline. See [ROADMAP.md](ROADMAP.md) for the full sprint plan.
 
 ## Features (live)
 

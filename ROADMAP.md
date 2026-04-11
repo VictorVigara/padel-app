@@ -37,6 +37,8 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 
 **Done when:** App can upload a dummy file to Supabase storage, backend receives the job, runs a stub, writes a result row to Supabase.
 
+**Sprint 0 completed: 2026-04-11** ✓
+
 ---
 
 ### Sprint 1 — Record & Upload (3 weeks)

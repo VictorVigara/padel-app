@@ -7,7 +7,11 @@ AI-powered padel match analytics using just an iPhone camera. Place your phone i
 ## Features (live)
 
 - **Authentication** — Email/password sign-up and login via Supabase Auth
-- **Match Recording** — Log singles and doubles matches with set-by-set scores, opponent names, location, surface, and match type
+- **In-app Recording** — Fullscreen camera with court detection overlay, exposure/focus lock after 3s, elapsed timer, start/stop controls
+- **On-device Compression** — H.264 at ~5 Mbps via ffmpeg_kit; 90-min match compressed to 400–800 MB before upload
+- **Background Upload** — Direct upload to Cloudflare R2 via pre-signed URL; survives screen lock (NSURLSession on iOS, WorkManager on Android)
+- **Analysis Queue** — Processing job inserted into Supabase after upload; "Analysing…" / "Analysis ready" / "Analysis failed" badges in match history
+- **Match Entry** — Log singles and doubles matches with set-by-set scores, opponent names, location, surface, and match type
 - **ELO Rating System** — Automatic rating calculation after each match with score margin adjustments
 - **Rating History** — Line chart showing your rating progression over time
 - **Match Filtering** — Filter match history by result, match type, court surface, and date range
@@ -25,6 +29,8 @@ AI-powered padel match analytics using just an iPhone camera. Place your phone i
 | Charts | fl_chart |
 | App Backend | Supabase (PostgreSQL, Auth, RLS, Storage) |
 | CV Backend | Python, FastAPI, Modal (serverless GPU) |
+| Video Compression | ffmpeg_kit_flutter_new (H.264, ~5 Mbps) |
+| Background Upload | background_downloader (NSURLSession / WorkManager) |
 | Player Tracking | YOLO11l + DeepOCSORT + OSNet (Sprint 2+) |
 | i18n | Flutter intl / ARB files |
 
@@ -47,7 +53,7 @@ flutter run \
   --dart-define=CLOUDFLARE_R2_BUCKET=padel-match-videos
 ```
 
-For local backend testing on Android emulator use `BACKEND_URL=http://10.0.2.2:8000`; for iOS simulator use `http://localhost:8000`.
+For local backend testing on a physical Android device, use [ngrok](https://ngrok.com) to expose the local server: `ngrok http 8000` and pass the HTTPS URL as `BACKEND_URL`. For Android emulator use `http://10.0.2.2:8000`; for iOS simulator use `http://localhost:8000`.
 
 ### Database Setup
 
@@ -58,6 +64,7 @@ Run the SQL migrations in order against your Supabase project:
 3. `supabase/migrations/20260315000003_ratings_cascade_fix.sql` — FK cascade fix
 4. `supabase/migrations/20260411000001_processing_jobs.sql` — Async CV job queue table
 5. `supabase/migrations/20260411000002_match_analyses.sql` — CV analysis results table
+6. `supabase/migrations/20260412000001_match_status_field.sql` — Match status enum + nullable player/format fields for draft matches
 
 ### External Services
 
@@ -78,7 +85,8 @@ lib/                        Flutter app
 ├── core/                   Theme, router, network, shared widgets
 ├── features/
 │   ├── auth/               Login, register, profile setup
-│   ├── match/              Match CRUD, history, filtering
+│   ├── match/              Match CRUD, history, filtering, analysis badges
+│   ├── recording/          Camera recording, compression, R2 upload, job queue
 │   ├── rating/             ELO calculator, rating history, chart
 │   ├── statistics/         Stats dashboard, aggregation, charts
 │   └── player_profile/     Profile view and edit
@@ -91,7 +99,7 @@ cv_backend/                 Python FastAPI CV server (cloud GPU)
 │   ├── ball_tracker.py     TrackNetV4 (Sprint 5+)
 │   └── court_detector.py   Homography detection (Sprint 2)
 ├── api/
-│   ├── main.py             FastAPI app (POST /analyze, GET /analyze/{id})
+│   ├── main.py             FastAPI app (POST /upload-url, GET /analyze/{id})
 │   ├── models.py           Pydantic request/response models
 │   └── job_queue.py        Supabase poller — picks up queued jobs every 30s
 └── infra/
@@ -109,7 +117,7 @@ The CV backend runs on a cloud GPU (Modal, serverless A10G) and processes match 
 
 **Key design constraint:** `analyze_match()` in `cv_backend/pipeline/analyze_match.py` is the only contract between the CV pipeline and the infrastructure. It takes a local file path and returns an `AnalysisResult` dataclass. It knows nothing about Modal, queues, or HTTP. Switching GPU providers means rewriting only `infra/modal_runner.py`.
 
-### Run locally (Sprint 0 stub — no GPU required)
+### Run locally (Sprint 1 — upload-url endpoint live, CV pipeline is stub)
 
 ```bash
 cp .env.example .env   # fill in SUPABASE_URL and SUPABASE_SERVICE_KEY

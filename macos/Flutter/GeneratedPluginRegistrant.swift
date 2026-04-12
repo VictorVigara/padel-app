@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import app_links
-import ffmpeg_kit_flutter
+import ffmpeg_kit_flutter_new
 import shared_preferences_foundation
 import url_launcher_macos
 

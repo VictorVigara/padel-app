@@ -29,6 +29,18 @@ dependencies:
   # Local storage
   shared_preferences: ^2.3.4
 
+  # Camera recording
+  camera: ^0.11.0
+
+  # Video compression
+  ffmpeg_kit_flutter: ^6.0.3
+
+  # Background upload (NSURLSession on iOS, WorkManager on Android)
+  background_downloader: ^8.7.0
+
+  # File system paths
+  path_provider: ^2.1.4
+
   # Utilities
   intl: ^0.20.2
   uuid: ^4.5.1

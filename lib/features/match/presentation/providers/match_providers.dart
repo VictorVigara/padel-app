@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:padel_app/core/network/supabase_client.dart';
 import 'package:padel_app/features/match/data/repositories/match_repository.dart';
 import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/domain/models/match_filter.dart';
@@ -27,6 +28,56 @@ final matchStatsProvider =
     FutureProvider.autoDispose.family<List<MatchStats>, String>((ref, matchId) async {
   final repo = ref.watch(matchRepositoryProvider);
   return repo.getMatchStats(matchId);
+});
+
+// ── Analysis status badges ────────────────────────────────────────────────────
+
+enum AnalysisStatus { queued, processing, done, failed }
+
+class AnalysisBadgeInfo {
+  final AnalysisStatus status;
+  final String? jobId;
+
+  const AnalysisBadgeInfo({required this.status, this.jobId});
+}
+
+/// Returns the latest processing_job for a match, or null if none exists.
+///
+/// Auto-invalidates every 30 seconds while the job is queued/processing so
+/// the badge in match history updates without requiring a manual refresh.
+final analysisStatusProvider = FutureProvider.autoDispose
+    .family<AnalysisBadgeInfo?, String>((ref, matchId) async {
+  if (!SupabaseConfig.isConfigured) return null;
+
+  final response = await SupabaseConfig.client
+      .from('processing_jobs')
+      .select('id, status')
+      .eq('match_id', matchId)
+      .order('created_at', ascending: false)
+      .limit(1)
+      .maybeSingle();
+
+  if (response == null) return null;
+
+  final status = switch (response['status'] as String) {
+    'queued' => AnalysisStatus.queued,
+    'processing' => AnalysisStatus.processing,
+    'done' => AnalysisStatus.done,
+    'failed' => AnalysisStatus.failed,
+    _ => AnalysisStatus.queued,
+  };
+
+  // Auto-refresh while job is in-flight.
+  if (status == AnalysisStatus.queued || status == AnalysisStatus.processing) {
+    Future.delayed(const Duration(seconds: 30), () {
+      ref.invalidateSelf();
+    });
+  }
+
+  return AnalysisBadgeInfo(
+    status: status,
+    jobId: response['id'] as String,
+  );
 });
 
 /// Current filter state for match history.

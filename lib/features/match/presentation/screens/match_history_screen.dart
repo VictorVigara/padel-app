@@ -303,6 +303,10 @@ class _MatchCard extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  if (match.id != null) ...[
+                    _AnalysisBadge(matchId: match.id!),
+                    const SizedBox(width: 4),
+                  ],
                   if (ratingChange != null)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -483,5 +487,77 @@ class _MatchCard extends ConsumerWidget {
       default:
         return l10n.other;
     }
+  }
+}
+
+/// Badge showing the latest analysis job status for a single match.
+///
+/// Renders nothing if no job has been submitted. Auto-refreshes every 30s
+/// while the job is queued or processing (driven by analysisStatusProvider).
+class _AnalysisBadge extends ConsumerWidget {
+  final String matchId;
+
+  const _AnalysisBadge({required this.matchId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final jobAsync = ref.watch(analysisStatusProvider(matchId));
+    return jobAsync.maybeWhen(
+      data: (info) {
+        if (info == null) return const SizedBox.shrink();
+        return switch (info.status) {
+          AnalysisStatus.queued || AnalysisStatus.processing => _badge(
+              'Analysing…',
+              AppColors.secondary,
+              Icons.sync,
+            ),
+          AnalysisStatus.done => _badge(
+              'Analysis ready',
+              AppColors.win,
+              Icons.check_circle_outline,
+            ),
+          AnalysisStatus.failed => GestureDetector(
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Re-upload to retry — coming soon'),
+                  ),
+                );
+              },
+              child: _badge(
+                'Analysis failed',
+                AppColors.error,
+                Icons.refresh,
+              ),
+            ),
+        };
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _badge(String label, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

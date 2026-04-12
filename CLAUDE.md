@@ -620,7 +620,7 @@ ngrok http 8000   # copy the https URL into .env as BACKEND_URL
 - [x] On-device compression: ffmpeg_kit_flutter_new at ~5 Mbps, progress shown to user
 - [x] R2 upload pipeline: pre-signed URL flow, background_downloader, 3× retry
 - [x] Background upload: NSURLSession (iOS) + WorkManager (Android) via background_downloader
-- [x] Insert processing_jobs row + call POST /analyze after upload
+- [x] Insert processing_jobs row directly via Supabase after upload (POST /analyze removed — poller picks up within 30s)
 - [x] "Analysing..." badge in match history (auto-refreshes every 30s while in-flight)
 - [x] "Analysis failed" badge with tap-to-retry placeholder
 - [x] POST /upload-url backend endpoint with boto3 R2 pre-signed URL generation

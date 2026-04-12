@@ -551,3 +551,61 @@ Requires four GitHub repository secrets: `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`,
 - [x] Cloudflare R2 bucket created
 - [x] Modal account set up and GPU deployment verified end-to-end (run_poller live, succeeding)
 - [x] End-to-end smoke test: dummy upload → job queued → stub result in Supabase ✓
+
+---
+
+## Sprint 1 — Architectural decisions (2026-04-12)
+
+### Camera plugin: `camera` (official Flutter, v0.11.x)
+Chose `camera` over `camerawesome`. Reasons: explicit imperative API (`setExposureMode`, `setFocusMode`, `setExposurePoint`, `setFocusPoint`) maps cleanly onto the 3-second exposure-lock timer. `camerawesome`'s reactive builder pattern fights Riverpod's StateNotifier ownership model. `camera` is Flutter-team maintained with better iOS edge-case coverage for Codemagic/TestFlight.
+
+HDR and stabilization cannot be disabled through either plugin's public API — accept platform defaults for Sprint 1. Add a platform channel call in a later sprint if court detection failures correlate.
+
+### Background upload: `background_downloader` (v8.x)
+Uses `NSURLSession` background transfers on iOS (survives screen lock natively) and `WorkManager` on Android. This replaces the originally-considered `flutter_background` + plain `http` approach — `flutter_background` is Android-only and would have required a separate iOS workaround.
+
+Upload uses `UploadTask` with `post: 'binary'` and `httpRequestMethod: 'PUT'` to do a direct binary PUT to the Cloudflare R2 pre-signed URL. Retries: 3.
+
+### Court detection: Flutter-side heuristic stub
+The recording screen runs a YUV420 color analysis on live camera frames (sampled every 12th chroma pixel) to detect blue-green pixels (padel court surface). Threshold: ≥20% green-hued pixels → "Angle looks good ✓". This is a stub — Sprint 2 replaces it with a real homography check against the backend court_detector.py.
+
+### R2 upload flow
+1. Flutter calls `POST /upload-url` on the FastAPI backend with `match_id` + `content_length`
+2. Backend generates a pre-signed S3 PUT URL (1hr expiry) and returns it with the R2 `object_key`
+3. Flutter uploads the compressed video directly to R2 via `background_downloader` (no backend involvement in the transfer)
+4. Flutter inserts a row in `processing_jobs` via Supabase with the full R2 HTTPS URL
+5. Flutter calls `POST /analyze` on the backend to wake up the poller immediately (poller picks it up anyway within 30s)
+
+R2 credentials never touch the Flutter app — only the time-limited pre-signed URL is passed.
+
+### Video compression: `ffmpeg_kit_flutter` v6.0.3
+⚠️ Note: `ffmpeg_kit_flutter` v6.0.3 is marked "discontinued" on pub.dev. It still works correctly for Sprint 1. Evaluate migrating to the community fork `ffmpeg_kit_flutter_new` before Sprint 3.
+
+Compression settings: `-c:v libx264 -b:v 5000k -maxrate 5000k -bufsize 10000k -vf scale=1920:1080 -r 30 -c:a aac -b:a 128k`. Target: ~5 Mbps, 1080p, 30fps. Expected output: 400–800 MB for a 90-min match.
+
+### Recording UX flow
+1. Match form → user taps camera icon in AppBar → creates match → redirects to `/matches/:id/record`
+2. Recording screen locks to landscape + immersive mode
+3. Court guide overlay shown until angle is validated
+4. Start button enabled only when courtOk; stop button enabled only after 5s (anti-accidental-tap)
+5. After stop: compression → upload → job insertion → navigate to `/matches/:id`
+
+### BACKEND_URL env var
+Backend URL in Flutter is set at compile time:
+```
+--dart-define=BACKEND_URL=https://your-modal-endpoint.modal.run
+```
+Default for Android emulator: `http://10.0.2.2:8000`. Default for iOS simulator: use `http://localhost:8000`.
+
+### Sprint 1 status (as of 2026-04-12)
+- [x] Recording screen: camera preview fullscreen, start/stop button, elapsed time display
+- [x] Lock camera settings: 1080p, 30fps, exposure lock after 3s, focus infinity
+- [x] Court detection validation: YUV heuristic stub, "Angle looks good ✓" overlay
+- [x] On-device compression: ffmpeg_kit_flutter at ~5 Mbps, progress shown to user
+- [x] R2 upload pipeline: pre-signed URL flow, background_downloader, 3× retry
+- [x] Background upload: NSURLSession (iOS) + WorkManager (Android) via background_downloader
+- [x] Insert processing_jobs row + call POST /analyze after upload
+- [x] "Analysing..." badge in match history (auto-refreshes every 30s while in-flight)
+- [x] "Analysis failed" badge with tap-to-retry placeholder
+- [x] POST /upload-url backend endpoint with boto3 R2 pre-signed URL generation
+- [x] flutter analyze: no issues

@@ -53,17 +53,19 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 **Goal:** User can record a match inside the app and upload it correctly for processing.
 
 **Recording:**
-- [ ] Recording screen: camera preview, start/stop, elapsed time display
-- [ ] Lock camera settings: 1080p, 30fps, fixed exposure after 3s, focus infinity, HDR off
-- [ ] Court detection validation before recording — show "angle looks good ✓" or guide to adjust
-- [ ] On-device compression after recording (~5 Mbps, target 400–800 MB for 90-min match)
+- [x] Recording screen: camera preview, start/stop, elapsed time display
+- [x] Lock camera settings: 1080p, 30fps, fixed exposure after 3s, focus infinity
+- [x] Court detection validation before recording — show "angle looks good ✓" or guide to adjust
+- [x] On-device compression after recording (~5 Mbps, target 400–800 MB for 90-min match)
 
 **Upload:**
-- [ ] Upload compressed video directly to Cloudflare R2 (pre-signed URL flow, S3-compatible)
-- [ ] Resumable upload — handle interrupted connections
-- [ ] Background upload — continues if user locks phone or switches apps
-- [ ] Insert row in `processing_jobs` (with R2 object URL) after upload completes
-- [ ] "Match pending analysis" state visible in match history
+- [x] Upload compressed video directly to Cloudflare R2 (pre-signed URL flow, S3-compatible)
+- [x] Resumable upload — handle interrupted connections (background_downloader 3× retry)
+- [x] Background upload — continues if user locks phone (NSURLSession iOS / WorkManager Android)
+- [x] Insert row in `processing_jobs` (with R2 object URL) after upload completes
+- [x] "Match pending analysis" state visible in match history ("Analysing..." / "Analysis failed" badges)
+
+**Sprint 1 completed: 2026-04-12** ✓
 
 **Done when:** A real 90-min match video is uploaded, compressed, stored in Cloudflare R2, and a processing job is queued. Upload completes in under 10 minutes on 4G.
 

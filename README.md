@@ -2,7 +2,7 @@
 
 AI-powered padel match analytics using just an iPhone camera. Place your phone in the back corner of any court, record a match, and automatically receive player heatmaps, distance stats, and rally analysis. No club infrastructure required.
 
-> **Sprint 0 complete (2026-04-11)** — Flutter app, Supabase schema, CV backend scaffold, FastAPI stub, job queue poller running live on Modal, CI/CD pipeline, and end-to-end smoke test all done. Starting Sprint 1 — recording screen and R2 upload pipeline. See [ROADMAP.md](ROADMAP.md) for the full sprint plan.
+> **Sprint 1 complete (2026-04-12)** — In-app recording screen with court detection overlay, on-device compression (~5 Mbps), background upload to Cloudflare R2 (NSURLSession iOS / WorkManager Android), processing job queue insertion, and "Analysing…" badges in match history all done. Starting Sprint 2 — real CV pipeline (YOLO11l + DeepOCSORT). See [ROADMAP.md](ROADMAP.md) for the full sprint plan.
 
 ## Features (live)
 
@@ -41,8 +41,13 @@ AI-powered padel match analytics using just an iPhone camera. Place your phone i
 ```bash
 flutter run \
   --dart-define=SUPABASE_URL=your_supabase_url \
-  --dart-define=SUPABASE_ANON_KEY=your_anon_key
+  --dart-define=SUPABASE_ANON_KEY=your_anon_key \
+  --dart-define=BACKEND_URL=https://your-modal-endpoint.modal.run \
+  --dart-define=CLOUDFLARE_R2_ACCOUNT_ID=your_r2_account_id \
+  --dart-define=CLOUDFLARE_R2_BUCKET=padel-match-videos
 ```
+
+For local backend testing on Android emulator use `BACKEND_URL=http://10.0.2.2:8000`; for iOS simulator use `http://localhost:8000`.
 
 ### Database Setup
 
@@ -117,7 +122,7 @@ uv run uvicorn cv_backend.api.main:app --reload
 See [ROADMAP.md](ROADMAP.md) for the full sprint plan. Short version:
 
 - [x] Sprint 0 — Foundation: Flutter app, Supabase schema, CV backend scaffold
-- [ ] Sprint 1 — Record & Upload: in-app recording, on-device compression, upload pipeline
+- [x] Sprint 1 — Record & Upload: in-app recording, on-device compression, R2 upload pipeline, analysis badges
 - [ ] Sprint 2 — Analysis Pipeline: real YOLO tracking, court homography, results to Supabase
 - [ ] Sprint 3 — Results UI: heatmaps, distance stats, processing states
 - [ ] Sprint 4 — Polish & First Real Users: onboarding, GDPR, TestFlight

@@ -64,6 +64,10 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 - [x] Background upload — continues if user locks phone (NSURLSession iOS / WorkManager Android)
 - [x] Insert row in `processing_jobs` (with R2 object URL) after upload completes
 - [x] "Match pending analysis" state visible in match history ("Analysing..." / "Analysis failed" badges)
+- [x] Camera button creates draft match directly — no form before recording
+- [x] Post-upload navigates to match edit screen (fill in results after playing)
+- [x] Match status state machine: draft → recording → processing → completed
+- [x] Supabase migration: nullable match fields + status column
 
 **Sprint 1 completed: 2026-04-12** ✓
 
@@ -75,8 +79,10 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 **Goal:** Backend processes real match video and returns structured tracking data.
 
 - [ ] **First Codemagic iOS build** — smoke test camera lock, compression, and background upload on a real iPhone via TestFlight. Do not skip this; camera behaviour differs between Android and iOS and Sprint 3 depends on it.
+- [ ] Gallery upload: `image_picker` → same R2/processing_jobs flow as recording → match edit screen (no compression for gallery videos)
+- [ ] Court homography: detect court keypoints, compute H matrix (pixel → court-meter transform), store in Supabase
+- [ ] Replace `/analyze` stub with real job that runs homography on uploaded video
 - [ ] Backend polls `processing_jobs` table every 30s, picks up queued jobs
-- [ ] Court homography: validate angle, compute pixel → court-meter transform
 - [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1fps
 - [ ] Aggregate to heatmap grid (20×10), total distance, court coverage %
 - [ ] Write `AnalysisResult` JSON to `match_analyses` table in Supabase

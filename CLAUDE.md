@@ -578,34 +578,77 @@ The recording screen runs a YUV420 color analysis on live camera frames (sampled
 
 R2 credentials never touch the Flutter app — only the time-limited pre-signed URL is passed.
 
-### Video compression: `ffmpeg_kit_flutter` v6.0.3
-⚠️ Note: `ffmpeg_kit_flutter` v6.0.3 is marked "discontinued" on pub.dev. It still works correctly for Sprint 1. Evaluate migrating to the community fork `ffmpeg_kit_flutter_new` before Sprint 3.
+### Video compression: `ffmpeg_kit_flutter_new` (community fork)
+Migrated from the discontinued `ffmpeg_kit_flutter` v6.0.3 to `ffmpeg_kit_flutter_new` before Sprint 2. The API is identical — only the import package name changed.
 
 Compression settings: `-c:v libx264 -b:v 5000k -maxrate 5000k -bufsize 10000k -vf scale=1920:1080 -r 30 -c:a aac -b:a 128k`. Target: ~5 Mbps, 1080p, 30fps. Expected output: 400–800 MB for a 90-min match.
 
-### Recording UX flow
-1. Match form → user taps camera icon in AppBar → creates match → redirects to `/matches/:id/record`
-2. Recording screen locks to landscape + immersive mode
-3. Court guide overlay shown until angle is validated
-4. Start button enabled only when courtOk; stop button enabled only after 5s (anti-accidental-tap)
-5. After stop: compression → upload → job insertion → navigate to `/matches/:id`
+### Recording UX flow (updated)
+1. User taps camera icon in match history AppBar
+2. Draft match created immediately (status=recording, only createdBy + matchDate set)
+3. Recording screen opens directly — no form before recording
+4. Court guide overlay shown (heuristic stub, does not block recording)
+5. Start button always enabled; stop button enabled after 5s
+6. After stop: compression → upload → job insertion → navigate to `/matches/:id/edit`
+7. User fills in score, opponents, match type in edit form
+8. Save → navigate to `/matches/:id` (match detail)
+
+### Match status state machine
+`draft → recording → processing → completed`
+- `draft`: created but not yet recorded (unused in current flow, reserved)
+- `recording`: draft match created, recording screen open
+- `processing`: upload complete, job queued in Supabase
+- `completed`: user has saved match results in edit form
+
+DB migration: `20260412000001_match_status_field.sql` — also made `matchType`, `matchFormat`, `team1Player1Id`, `team2Player1Id` nullable to support draft matches.
 
 ### BACKEND_URL env var
 Backend URL in Flutter is set at compile time:
 ```
 --dart-define=BACKEND_URL=https://your-modal-endpoint.modal.run
 ```
-Default for Android emulator: `http://10.0.2.2:8000`. Default for iOS simulator: use `http://localhost:8000`.
+For local development with a physical Android device, use ngrok to expose the local server:
+```bash
+uv run uvicorn cv_backend.api.main:app --reload --host 0.0.0.0
+ngrok http 8000   # copy the https URL into .env as BACKEND_URL
+```
 
 ### Sprint 1 status (as of 2026-04-12)
 - [x] Recording screen: camera preview fullscreen, start/stop button, elapsed time display
 - [x] Lock camera settings: 1080p, 30fps, exposure lock after 3s, focus infinity
-- [x] Court detection validation: YUV heuristic stub, "Angle looks good ✓" overlay
-- [x] On-device compression: ffmpeg_kit_flutter at ~5 Mbps, progress shown to user
+- [x] Court detection validation: YUV heuristic stub, overlay (does not block recording)
+- [x] On-device compression: ffmpeg_kit_flutter_new at ~5 Mbps, progress shown to user
 - [x] R2 upload pipeline: pre-signed URL flow, background_downloader, 3× retry
 - [x] Background upload: NSURLSession (iOS) + WorkManager (Android) via background_downloader
 - [x] Insert processing_jobs row + call POST /analyze after upload
 - [x] "Analysing..." badge in match history (auto-refreshes every 30s while in-flight)
 - [x] "Analysis failed" badge with tap-to-retry placeholder
 - [x] POST /upload-url backend endpoint with boto3 R2 pre-signed URL generation
+- [x] Camera button creates draft match directly — no form before recording
+- [x] Post-upload navigation to match edit screen (status=processing)
+- [x] Match status state machine in DB and Dart model
 - [x] flutter analyze: no issues
+
+---
+
+## Sprint 2 — Architectural decisions
+
+### Gallery upload flow
+Same flow as recording: creates draft match → calls `POST /upload-url` → uploads original
+file directly to R2 via `background_downloader` → inserts `processing_jobs` row → navigates
+to match edit screen. No compression for gallery videos (original quality preserved).
+Uses `image_picker` package (`video_source: ImageSource.gallery`).
+
+### Court homography (CV backend)
+Goal: given a video frame, detect the 4 court corners + net line and compute the
+perspective transform matrix H that maps pixel coordinates → real-world court meters.
+- Input: single frame extracted from the uploaded video (first 30s, highest contrast)
+- Method: classical CV (Hough lines + corner detection) — no ML needed for court lines
+- Output: 3×3 homography matrix H stored as JSONB in `match_analyses` or `processing_jobs`
+- This H is the foundation for all player position data in Sprint 2+
+
+### Sprint 2 status
+- [ ] Gallery upload: `image_picker` → R2 → `processing_jobs` → edit screen
+- [ ] Court homography: detect keypoints, compute H, store in Supabase
+- [ ] Replace `/analyze` stub with real job that runs homography on uploaded video
+- [ ] First Codemagic iOS build — smoke test camera + upload on real iPhone

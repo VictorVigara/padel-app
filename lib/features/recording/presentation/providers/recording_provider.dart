@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:padel_app/features/recording/data/repositories/recording_repository.dart';
 import 'package:padel_app/features/recording/domain/models/recording_state.dart';
 import 'package:padel_app/features/recording/domain/services/compression_service.dart';
+import 'package:padel_app/features/recording/domain/models/court_detection_result.dart';
 import 'package:padel_app/features/recording/domain/services/court_detection_service.dart';
 import 'package:path_provider/path_provider.dart';
 

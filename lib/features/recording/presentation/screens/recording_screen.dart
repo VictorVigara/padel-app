@@ -68,7 +68,6 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
         ref.read(uploadNotifierProvider.notifier).startUpload(
               matchId: widget.matchId,
               videoPath: next.videoPath!,
-              ref: ref,
             );
       }
 

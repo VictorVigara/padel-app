@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -76,8 +77,9 @@ class UploadRepository {
   /// Upload the file at [filePath] to R2 using [uploadUrl].
   ///
   /// Yields [UploadProgress] events as the upload proceeds.
-  /// Uses background_downloader's UploadTask so the transfer survives
-  /// screen lock on both iOS (NSURLSession) and Android (WorkManager).
+  /// Uses background_downloader's UploadTask so the transfer survives screen
+  /// lock on iOS (NSURLSession) and Android (WorkManager).
+  /// Retries up to 3 times on network failure.
   Stream<UploadProgress> uploadToR2({
     required String uploadUrl,
     required String filePath,
@@ -85,58 +87,47 @@ class UploadRepository {
     final file = File(filePath);
     final totalBytes = await file.length();
 
+    final controller = StreamController<UploadProgress>();
+
     final task = UploadTask(
       url: uploadUrl,
       filename: filePath.split('/').last,
       directory: filePath.substring(0, filePath.lastIndexOf('/')),
+      baseDirectory: BaseDirectory.root, // use absolute path via 'root'
       httpRequestMethod: 'PUT',
+      post: 'binary',
       headers: {'Content-Type': 'video/mp4'},
       retries: 3,
-      updates: Updates.progressAndStatus,
+      updates: Updates.statusAndProgress,
     );
 
-    final completer = <UploadProgress>[];
-    bool done = false;
-    Object? uploadError;
-
-    FileDownloader().updates.listen((update) {
-      if (update is TaskProgressUpdate && update.task.taskId == task.taskId) {
-        if (update.progress >= 0) {
-          completer.add(UploadProgress(
-            bytesUploaded: (update.progress * totalBytes).round(),
+    FileDownloader().upload(
+      task,
+      onProgress: (progress) {
+        if (!controller.isClosed) {
+          controller.add(UploadProgress(
+            bytesUploaded: (progress * totalBytes).round(),
             totalBytes: totalBytes,
           ));
         }
-      } else if (update is TaskStatusUpdate &&
-          update.task.taskId == task.taskId) {
-        if (update.status == TaskStatus.complete) {
-          done = true;
-        } else if (update.status == TaskStatus.failed ||
-            update.status == TaskStatus.notFound) {
-          uploadError = Exception('Upload failed: ${update.status}');
-          done = true;
+      },
+      onStatus: (status) {
+        if (status == TaskStatus.complete) {
+          if (!controller.isClosed) {
+            controller.add(
+                UploadProgress(bytesUploaded: totalBytes, totalBytes: totalBytes));
+            controller.close();
+          }
+        } else if (status == TaskStatus.failed ||
+            status == TaskStatus.notFound) {
+          if (!controller.isClosed) {
+            controller.addError(Exception('Upload failed: $status'));
+            controller.close();
+          }
         }
-      }
-    });
+      },
+    );
 
-    await FileDownloader().enqueue(task);
-
-    // Poll until done, yielding progress updates.
-    while (!done) {
-      await Future.delayed(const Duration(milliseconds: 250));
-      for (final p in completer) {
-        yield p;
-      }
-      completer.clear();
-    }
-
-    // Yield any remaining progress.
-    for (final p in completer) {
-      yield p;
-    }
-
-    if (uploadError != null) throw uploadError!;
-
-    yield UploadProgress(bytesUploaded: totalBytes, totalBytes: totalBytes);
+    yield* controller.stream;
   }
 }

@@ -45,8 +45,9 @@ class UploadState {
 class UploadNotifier extends StateNotifier<UploadState> {
   final UploadRepository _uploadRepo;
   final ProcessingJobRepository _jobRepo;
+  final Ref _ref;
 
-  UploadNotifier()
+  UploadNotifier(this._ref)
       : _uploadRepo = UploadRepository(),
         _jobRepo = ProcessingJobRepository(),
         super(const UploadState());
@@ -54,7 +55,6 @@ class UploadNotifier extends StateNotifier<UploadState> {
   Future<void> startUpload({
     required String matchId,
     required String videoPath,
-    required Ref ref,
   }) async {
     final file = File(videoPath);
     final fileSizeBytes = await file.length();
@@ -76,7 +76,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
         flowState: UploadFlowState.error,
         errorMessage: 'Could not get upload URL: $e',
       );
-      ref
+      _ref
           .read(recordingNotifierProvider(matchId).notifier)
           .markError('Could not get upload URL');
       return;
@@ -99,7 +99,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
         flowState: UploadFlowState.error,
         errorMessage: 'Upload failed: $e',
       );
-      ref
+      _ref
           .read(recordingNotifierProvider(matchId).notifier)
           .markError('Upload failed after retries');
       return;
@@ -107,17 +107,18 @@ class UploadNotifier extends StateNotifier<UploadState> {
 
     // Build the full R2 public URL from the object key.
     // The backend uses this to download the video for processing.
-    final r2AccountId = const String.fromEnvironment('CLOUDFLARE_R2_ACCOUNT_ID');
+    final r2AccountId =
+        const String.fromEnvironment('CLOUDFLARE_R2_ACCOUNT_ID');
     final r2Bucket = const String.fromEnvironment(
       'CLOUDFLARE_R2_BUCKET',
       defaultValue: 'padel-match-videos',
     );
     final videoUrl = r2AccountId.isNotEmpty
         ? 'https://$r2AccountId.r2.cloudflarestorage.com/$r2Bucket/${urlResponse.objectKey}'
-        : urlResponse.objectKey; // fallback: just the key
+        : urlResponse.objectKey;
 
     state = state.copyWith(flowState: UploadFlowState.insertingJob);
-    ref
+    _ref
         .read(recordingNotifierProvider(matchId).notifier)
         .markInsertingJob();
 
@@ -128,7 +129,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
         flowState: UploadFlowState.error,
         errorMessage: 'Failed to queue analysis: $e',
       );
-      ref
+      _ref
           .read(recordingNotifierProvider(matchId).notifier)
           .markError('Failed to queue analysis job');
       return;
@@ -140,11 +141,11 @@ class UploadNotifier extends StateNotifier<UploadState> {
     } catch (_) {}
 
     state = state.copyWith(flowState: UploadFlowState.done);
-    ref.read(recordingNotifierProvider(matchId).notifier).markDone();
+    _ref.read(recordingNotifierProvider(matchId).notifier).markDone();
   }
 }
 
 final uploadNotifierProvider =
     StateNotifierProvider.autoDispose<UploadNotifier, UploadState>(
-  (ref) => UploadNotifier(),
+  (ref) => UploadNotifier(ref),
 );

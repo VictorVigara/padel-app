@@ -92,7 +92,7 @@ class StatsAggregator {
   static List<MatchTypeBreakdown> computeByMatchType(List<PadelMatch> matches) {
     final grouped = <String, List<PadelMatch>>{};
     for (final m in matches) {
-      grouped.putIfAbsent(m.matchType, () => []).add(m);
+      grouped.putIfAbsent(m.matchType ?? 'unknown', () => []).add(m);
     }
 
     return grouped.entries.map((e) {

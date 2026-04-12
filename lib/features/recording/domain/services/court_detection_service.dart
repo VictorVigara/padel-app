@@ -11,7 +11,8 @@ import 'package:padel_app/features/recording/domain/models/court_detection_resul
 /// against the backend court_detector.py.
 class CourtDetectionService {
   /// Minimum ratio of blue-green pixels to pass court detection.
-  static const double _greenRatioThreshold = 0.20;
+  /// Kept low for Sprint 1 stub — real homography check replaces this in Sprint 2.
+  static const double _greenRatioThreshold = 0.08;
 
   /// Analyze a single camera frame and return a detection result.
   CourtDetectionResult analyze(CameraImage frame) {

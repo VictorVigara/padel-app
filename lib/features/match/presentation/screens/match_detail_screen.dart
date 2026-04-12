@@ -43,6 +43,10 @@ class MatchDetailScreen extends ConsumerWidget {
         return Scaffold(
           appBar: AppBar(
             title: Text(l10n.matchDetails),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.canPop() ? context.pop() : context.go('/matches'),
+            ),
             actions: [
               if (isCreator) ...[
                 IconButton(
@@ -200,7 +204,7 @@ class _MatchDetailBody extends ConsumerWidget {
       // team2Player1Id might be creator's own ID if opponent wasn't linked
       if (isRealPlayer(match.team2Player1Id)) {
         opponent1Name = _resolvePlayerName(
-          playerId: match.team2Player1Id,
+          playerId: match.team2Player1Id ?? '',
           currentUserId: currentUserId,
           profileCache: profileCache,
           ref: ref,
@@ -237,7 +241,7 @@ class _MatchDetailBody extends ConsumerWidget {
     } else {
       // Viewer is on team 2 — opponents are team 1 players
       opponent1Name = _resolvePlayerName(
-        playerId: match.team1Player1Id,
+        playerId: match.team1Player1Id ?? '',
         currentUserId: currentUserId,
         profileCache: profileCache,
         ref: ref,
@@ -364,10 +368,12 @@ class _MatchDetailBody extends ConsumerWidget {
                   _infoRow(l10n.date, dateStr),
                   if (match.location != null)
                     _infoRow(l10n.location, match.location!),
-                  _infoRow(l10n.matchType,
-                      _formatMatchType(match.matchType, l10n)),
-                  _infoRow(l10n.matchFormat,
-                      _formatMatchFormat(match.matchFormat, l10n)),
+                  if (match.matchType != null)
+                    _infoRow(l10n.matchType,
+                        _formatMatchType(match.matchType!, l10n)),
+                  if (match.matchFormat != null)
+                    _infoRow(l10n.matchFormat,
+                        _formatMatchFormat(match.matchFormat!, l10n)),
                   _infoRow(l10n.courtSurface,
                       _formatSurface(match.courtSurface, l10n)),
                 ],

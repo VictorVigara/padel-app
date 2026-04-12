@@ -74,7 +74,7 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
       // Navigate back when done.
       if (next.flowState == RecordingFlowState.done) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) context.go('/matches/${widget.matchId}');
+          if (mounted) context.go('/matches/${widget.matchId}/edit');
         });
       }
     });

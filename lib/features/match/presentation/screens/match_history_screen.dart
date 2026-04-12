@@ -27,10 +27,18 @@ class MatchHistoryScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.videocam),
             tooltip: 'Record a match',
-            onPressed: () => context.push(
-              '/matches/new',
-              extra: {'record': true},
-            ),
+            onPressed: () async {
+              try {
+                final matchId = await ref.read(createDraftMatchProvider)();
+                if (context.mounted) context.push('/matches/$matchId/record');
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not start recording: $e')),
+                  );
+                }
+              }
+            },
           ),
           Stack(
             children: [
@@ -196,7 +204,7 @@ class _MatchCard extends ConsumerWidget {
 
     // Resolve all player names
     final team1P1Name = _resolvePlayerName(
-      playerId: match.team1Player1Id,
+      playerId: match.team1Player1Id ?? '',
       currentUserId: userId,
       profileCache: profileCache,
       ref: ref,
@@ -222,7 +230,7 @@ class _MatchCard extends ConsumerWidget {
     String team2P1Name;
     if (isRealPlayer(match.team2Player1Id)) {
       team2P1Name = _resolvePlayerName(
-        playerId: match.team2Player1Id,
+        playerId: match.team2Player1Id ?? '',
         currentUserId: userId,
         profileCache: profileCache,
         ref: ref,
@@ -270,8 +278,8 @@ class _MatchCard extends ConsumerWidget {
       return null;
     }
 
-    final team1P1Tap = tappableId(match.team1Player1Id);
-    final team2P1Tap = tappableId(match.team2Player1Id);
+    final team1P1Tap = match.team1Player1Id != null ? tappableId(match.team1Player1Id!) : null;
+    final team2P1Tap = match.team2Player1Id != null ? tappableId(match.team2Player1Id!) : null;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -378,8 +386,8 @@ class _MatchCard extends ConsumerWidget {
                 children: [
                   if (match.location != null)
                     _chip(Icons.location_on_outlined, match.location!),
-                  _chip(
-                      Icons.sports, _formatMatchType(match.matchType, l10n)),
+                  if (match.matchType != null)
+                    _chip(Icons.sports, _formatMatchType(match.matchType!, l10n)),
                   _chip(Icons.grass,
                       _formatSurface(match.courtSurface, l10n)),
                 ],

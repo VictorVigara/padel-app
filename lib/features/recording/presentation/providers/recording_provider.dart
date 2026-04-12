@@ -86,7 +86,9 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
   // ── Recording ──────────────────────────────────────────────────────────────
 
   Future<void> startRecording() async {
-    if (state.flowState != RecordingFlowState.readyToRecord) return;
+    if (state.flowState != RecordingFlowState.readyToRecord &&
+        state.flowState != RecordingFlowState.badAngle &&
+        state.flowState != RecordingFlowState.detectingCourt) return;
 
     // Must stop image stream before recording on most devices.
     await _repo.stopImageStream();

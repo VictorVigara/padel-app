@@ -108,8 +108,8 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
     _matchDate = match.matchDate;
     _locationController.text = match.location ?? '';
     _courtSurface = match.courtSurface ?? 'glass';
-    _matchType = match.matchType;
-    _matchFormat = match.matchFormat;
+    _matchType = match.matchType ?? 'friendly';
+    _matchFormat = match.matchFormat ?? 'best_of_3';
     _isDoubles =
         match.team1Player2Id != null || match.team2Player2Id != null;
 
@@ -191,9 +191,11 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
       _opponent1Name = '';
       _opponent2Name = '';
       _partnerName = '';
-      _fetchPlayerName(match.team1Player1Id, (name) {
-        if (mounted) setState(() => _opponent1Name = name);
-      });
+      if (match.team1Player1Id != null) {
+        _fetchPlayerName(match.team1Player1Id!, (name) {
+          if (mounted) setState(() => _opponent1Name = name);
+        });
+      }
       if (match.team1Player2Id != null) {
         if (match.team1Player2Id != match.createdBy) {
           _fetchPlayerName(match.team1Player2Id!, (name) {
@@ -352,6 +354,8 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
         // If launched via the "Record a match" button, go straight to recording.
         if (widget.startRecordingOnSave && createdMatchId != null) {
           context.go('/matches/$createdMatchId/record');
+        } else if (_isEditing && widget.matchId != null) {
+          context.go('/matches/${widget.matchId}');
         } else {
           context.pop();
         }

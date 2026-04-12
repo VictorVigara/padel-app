@@ -20,13 +20,9 @@ class CameraPreviewWidget extends StatelessWidget {
     }
 
     return SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: ctrl.value.previewSize!.height,
-          height: ctrl.value.previewSize!.width,
-          child: CameraPreview(ctrl),
-        ),
+      child: AspectRatio(
+        aspectRatio: 1 / ctrl.value.aspectRatio,
+        child: CameraPreview(ctrl),
       ),
     );
   }

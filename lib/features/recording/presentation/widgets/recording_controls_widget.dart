@@ -18,7 +18,10 @@ class RecordingControlsWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRecording = state.flowState == RecordingFlowState.recording;
-    final canStart = state.flowState == RecordingFlowState.readyToRecord;
+    // Allow starting even if court detection hasn't passed — Sprint 2 will enforce this.
+    final canStart = state.flowState == RecordingFlowState.readyToRecord ||
+        state.flowState == RecordingFlowState.badAngle ||
+        state.flowState == RecordingFlowState.detectingCourt;
     final minRecordingElapsed = state.elapsedSeconds >= 5;
 
     final buttonEnabled = canStart || (isRecording && minRecordingElapsed);

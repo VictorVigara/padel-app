@@ -28,7 +28,7 @@ class RatingService {
 
     final won = match.winnerTeam == 1;
     final totalSetsPlayed = match.setScores.length;
-    final totalSetsInFormat = _maxSetsForFormat(match.matchFormat);
+    final totalSetsInFormat = _maxSetsForFormat(match.matchFormat ?? 'best_of_3');
 
     final newRating = EloCalculator.calculateNewRating(
       playerRating: currentRating,
@@ -88,7 +88,7 @@ class RatingService {
     final oppRating = latest?.rating ?? EloCalculator.startingRating;
 
     final totalSetsPlayed = match.setScores.length;
-    final totalSetsInFormat = _maxSetsForFormat(match.matchFormat);
+    final totalSetsInFormat = _maxSetsForFormat(match.matchFormat ?? 'best_of_3');
 
     final newRating = EloCalculator.calculateNewRating(
       playerRating: oppRating,

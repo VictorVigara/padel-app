@@ -22,6 +22,9 @@ class SetScore {
 /// Input source for match statistics — supports manual entry and future CV.
 enum StatsInputSource { manual, cvAuto, cvReviewed }
 
+/// Match lifecycle status — mirrors the `status` column in the DB.
+enum MatchStatus { draft, recording, processing, completed }
+
 /// Core match model. Designed to work identically whether stats come from
 /// manual input (Phase 1) or computer vision (Phase 3+).
 class PadelMatch {
@@ -30,14 +33,15 @@ class PadelMatch {
   final DateTime matchDate;
   final String? location;
   final String? courtSurface; // glass, cement, turf, other
-  final String matchType; // friendly, league, tournament
-  final String matchFormat; // best_of_3, best_of_5, single_set
-  final String team1Player1Id;
-  final String? team1Player2Id; // null for singles
-  final String team2Player1Id;
-  final String? team2Player2Id; // null for singles
+  final String? matchType; // friendly, league, tournament — nullable for draft matches
+  final String? matchFormat; // best_of_3, best_of_5, single_set — nullable for draft matches
+  final String? team1Player1Id; // nullable for draft matches
+  final String? team1Player2Id;
+  final String? team2Player1Id; // nullable for draft matches
+  final String? team2Player2Id;
   final int? winnerTeam; // 1 or 2
   final bool isCompleted;
+  final MatchStatus status;
   final List<SetScore> setScores;
   final String? videoUrl; // Phase 3+
   final String? leagueId; // Phase 2+
@@ -50,14 +54,15 @@ class PadelMatch {
     required this.matchDate,
     this.location,
     this.courtSurface,
-    required this.matchType,
-    required this.matchFormat,
-    required this.team1Player1Id,
+    this.matchType,
+    this.matchFormat,
+    this.team1Player1Id,
     this.team1Player2Id,
-    required this.team2Player1Id,
+    this.team2Player1Id,
     this.team2Player2Id,
     this.winnerTeam,
     this.isCompleted = false,
+    this.status = MatchStatus.draft,
     this.setScores = const [],
     this.videoUrl,
     this.leagueId,
@@ -79,6 +84,7 @@ class PadelMatch {
     String? team2Player2Id,
     int? winnerTeam,
     bool? isCompleted,
+    MatchStatus? status,
     List<SetScore>? setScores,
     String? videoUrl,
     String? leagueId,
@@ -98,6 +104,7 @@ class PadelMatch {
       team2Player2Id: team2Player2Id ?? this.team2Player2Id,
       winnerTeam: winnerTeam ?? this.winnerTeam,
       isCompleted: isCompleted ?? this.isCompleted,
+      status: status ?? this.status,
       setScores: setScores ?? this.setScores,
       videoUrl: videoUrl ?? this.videoUrl,
       leagueId: leagueId ?? this.leagueId,
@@ -120,6 +127,7 @@ class PadelMatch {
         'team2_player2_id': team2Player2Id,
         'winner_team': winnerTeam,
         'is_completed': isCompleted,
+        'status': status.name,
         'set_scores': setScores.map((s) => s.toJson()).toList(),
         'video_url': videoUrl,
         'league_id': leagueId,
@@ -132,17 +140,19 @@ class PadelMatch {
         matchDate: DateTime.parse(json['match_date'] as String),
         location: json['location'] as String?,
         courtSurface: json['court_surface'] as String?,
-        matchType: json['match_type'] as String,
-        matchFormat: json['match_format'] as String,
-        team1Player1Id: json['team1_player1_id'] as String,
+        matchType: json['match_type'] as String?,
+        matchFormat: json['match_format'] as String?,
+        team1Player1Id: json['team1_player1_id'] as String?,
         team1Player2Id: json['team1_player2_id'] as String?,
-        team2Player1Id: json['team2_player1_id'] as String,
+        team2Player1Id: json['team2_player1_id'] as String?,
         team2Player2Id: json['team2_player2_id'] as String?,
         winnerTeam: json['winner_team'] as int?,
         isCompleted: json['is_completed'] as bool? ?? false,
+        status: MatchStatus.values.byName(
+          json['status'] as String? ?? 'completed',
+        ),
         setScores: (json['set_scores'] as List<dynamic>?)
-                ?.map(
-                    (s) => SetScore.fromJson(s as Map<String, dynamic>))
+                ?.map((s) => SetScore.fromJson(s as Map<String, dynamic>))
                 .toList() ??
             [],
         videoUrl: json['video_url'] as String?,

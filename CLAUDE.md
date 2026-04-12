@@ -4,7 +4,7 @@
 
 AI-powered padel match analysis using just an iPhone camera. Player places phone in back corner of padel court (Gimadd-style mount, 1–1.5m height), records a match, and automatically receives player heatmaps, distance stats, and rally analysis. No club infrastructure required — works on any court, anywhere.
 
-**Target platform:** iOS first (iPhone), Android later via Flutter. All CV runs server-side.
+**Target platform:** iOS (iPhone) as the primary end-user platform. Flutter is used for cross-platform development. Development and daily testing happens on Android (no Mac available); iOS builds are produced via Codemagic (cloud CI/CD) and distributed through TestFlight. All CV runs server-side.
 
 ## Positioning in one sentence
 
@@ -378,7 +378,7 @@ When finishing a session:
 
 ### Testing on device
 
-**Important: no Mac available. Use this setup.**
+**Important: no Mac available. Development happens on Android; iOS validated via Codemagic + TestFlight.**
 
 **Daily development — Android via USB:**
 ```bash
@@ -386,6 +386,7 @@ flutter run -d [device-id]     # builds and installs directly to Android phone
 flutter devices                # list connected devices
 ```
 Android is the primary development and daily testing device. Already confirmed working (APK installed).
+The end-user target is iOS — Android is the development proxy, not the final platform.
 
 **iOS builds — Codemagic (no Mac needed):**
 - Push to GitHub → Codemagic builds iOS on a cloud Mac → uploads to TestFlight automatically
@@ -396,12 +397,22 @@ Android is the primary development and daily testing device. Already confirmed w
 
 **Validation rhythm:**
 - Daily: test on Android phone via USB
-- Weekly: push to main → Codemagic build → install from TestFlight on iPhone
+- Sprint 2 or 3: first Codemagic build — smoke test camera lock and background upload on a real iPhone
+- Sprint 4+: every significant feature validated on iOS via TestFlight before shipping to users
 
 **Camera behaviour difference:**
 Camera locking (exposure, focus, frame rate) behaves differently on Android vs iOS.
-Test CV pipeline on Android-recorded video in Sprint 1 to confirm quality is sufficient.
-Do not assume iOS and Android produce identical video for the tracker.
+Flutter's `camera` or `camerawesome` plugin abstracts this, but do not assume identical behaviour.
+- Test CV pipeline on Android-recorded video in Sprint 1 to validate quality is sufficient
+- Validate camera lock behaviour on a real iPhone no later than Sprint 3 via TestFlight
+- Do not assume iOS and Android produce identical video output for the tracker
+
+**Flutter iOS compatibility — confirmed safe for this app:**
+- Camera access + exposure/focus lock: works on iOS via `camera`/`camerawesome` plugin
+- Background upload: works on iOS with `flutter_background` or Dart isolates (verify in Sprint 3 iOS smoke test)
+- `ffmpeg_kit_flutter` compression: well-tested on iOS; watch for CocoaPods build issues on first Codemagic build
+- Heatmap/results UI: pure Flutter, identical on both platforms
+- No platform-specific APIs used (no AR, Bluetooth, or complex sensors)
 
 ### The planning ↔ implementation loop
 
@@ -451,11 +462,12 @@ Flutter: use `--dart-define` or a `.env` loader. Never hardcode keys.
 ### Definition of "done" for a feature
 
 A feature is not done until:
-- [ ] Works on a real iPhone (not just simulator)
+- [ ] Works on Android (daily dev device — confirmed before moving on)
 - [ ] Handles the main error case (network failure, bad input, etc.)
 - [ ] Committed and pushed on a feature branch
 - [ ] Reviewed and approved by Victor
 - [ ] Merged to main
+- [ ] Validated on a real iPhone via TestFlight before the sprint is closed (not required per-feature, required per-sprint)
 ---
 
 ## Documentation rules

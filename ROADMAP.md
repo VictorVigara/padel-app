@@ -1,6 +1,14 @@
 # Padel App — Product Roadmap
 
-## Vision
+## Development setup
+
+**No Mac available.** Daily development and testing happens on Android via USB (`flutter run`). iOS builds are produced via [Codemagic](https://codemagic.io) (cloud CI/CD, free tier: 500 min/month) and distributed via TestFlight. The end-user target is iOS — Android is the development proxy.
+
+- Set up Codemagic + Apple Developer account ($99/year) before Sprint 4
+- First TestFlight smoke test scheduled in Sprint 2/3 to validate camera lock + background upload on iPhone early
+- Do not wait until Sprint 4 to find out iOS behaves differently
+
+---
 
 Pro-level padel match analysis from any court, using just your iPhone. No club infrastructure, no complex setup — place your phone in the back corner (Gimadd-style mount), tap record, and get the stats that court-installed cameras provide, in your pocket.
 
@@ -64,6 +72,7 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 ### Sprint 2 — Analysis Pipeline (3 weeks)
 **Goal:** Backend processes real match video and returns structured tracking data.
 
+- [ ] **First Codemagic iOS build** — smoke test camera lock, compression, and background upload on a real iPhone via TestFlight. Do not skip this; camera behaviour differs between Android and iOS and Sprint 3 depends on it.
 - [ ] Backend polls `processing_jobs` table every 30s, picks up queued jobs
 - [ ] Court homography: validate angle, compute pixel → court-meter transform
 - [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1fps
@@ -237,12 +246,12 @@ Recommendation: unlimited during beta with a clear "beta ends [date]" message, t
 
 **App Store submission + no Mac constraint**
 No Mac available for local iOS builds. iOS builds are handled via Codemagic (cloud CI/CD, free tier sufficient).
-Setup required before Sprint 4:
+Codemagic should be set up in Sprint 2 (first smoke test build). By Sprint 4 it should already be working.
+Setup required before Sprint 4 if not done in Sprint 2:
 - Apple Developer account ($99/year) — activate early, takes 24–48h
 - Connect GitHub repo to codemagic.io
 - Add Apple signing credentials to Codemagic once
 - First TestFlight build needs ~1 day Apple review; subsequent builds are instant
-Action: set up Codemagic + Apple Developer account before Sprint 4 starts.
 
 ### Before Sprint 7 — Monetisation
 

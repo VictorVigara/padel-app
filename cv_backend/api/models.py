@@ -39,3 +39,19 @@ class JobStatusResponse(BaseModel):
     progress_pct: float | None = None
     results: dict | None = None   # AnalysisResult serialised as dict when done
     error: str | None = None
+
+
+class UploadUrlRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    match_id: str
+    content_type: str = "video/mp4"
+    content_length: int  # compressed file size in bytes
+
+
+class UploadUrlResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    upload_url: str   # pre-signed PUT URL, valid for 1 hour
+    object_key: str   # R2 key: "videos/{match_id}.mp4"
+    expires_at: str   # ISO-8601 timestamp

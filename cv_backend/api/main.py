@@ -25,8 +25,6 @@ from fastapi import FastAPI, HTTPException
 from supabase import Client, create_client
 
 from cv_backend.api.models import (
-    AnalyzeRequest,
-    AnalyzeResponse,
     JobStatusResponse,
     UploadUrlRequest,
     UploadUrlResponse,
@@ -101,25 +99,6 @@ async def generate_upload_url(request: UploadUrlRequest) -> UploadUrlResponse:
         object_key=object_key,
         expires_at=expires_at,
     )
-
-
-@app.post("/analyze", response_model=AnalyzeResponse, status_code=201)
-async def queue_analysis(request: AnalyzeRequest) -> AnalyzeResponse:
-    """
-    Queue a new analysis job.
-    Called by Flutter after a video upload to Supabase Storage completes.
-    """
-    try:
-        result = (
-            supabase.table("processing_jobs")
-            .insert({"match_id": request.match_id, "video_url": request.video_url})
-            .execute()
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to queue job: {exc}") from exc
-
-    job_id: str = result.data[0]["id"]
-    return AnalyzeResponse(job_id=job_id)
 
 
 @app.get("/analyze/{job_id}", response_model=JobStatusResponse)

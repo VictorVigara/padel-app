@@ -171,6 +171,7 @@ class _MatchCard extends ConsumerWidget {
     required AppLocalizations l10n,
     String? noteFallback,
   }) {
+    if (playerId.isEmpty) return noteFallback ?? l10n.player;
     if (playerId == currentUserId) return l10n.you;
     // Try profile cache
     final cached = profileCache[playerId]?['display_name'] as String?;
@@ -449,6 +450,7 @@ class _MatchCard extends ConsumerWidget {
 
   /// Fetch a profile and add to cache if not already present.
   void _fetchProfileIfNeeded(WidgetRef ref, String playerId) {
+    if (playerId.isEmpty) return;
     final cache = ref.read(profileCacheProvider);
     if (cache.containsKey(playerId)) return;
     final repo = ref.read(profileRepositoryProvider);

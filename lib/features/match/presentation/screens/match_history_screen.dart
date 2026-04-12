@@ -24,6 +24,14 @@ class MatchHistoryScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.matchHistory),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.videocam),
+            tooltip: 'Record a match',
+            onPressed: () => context.push(
+              '/matches/new',
+              extra: {'record': true},
+            ),
+          ),
           Stack(
             children: [
               IconButton(

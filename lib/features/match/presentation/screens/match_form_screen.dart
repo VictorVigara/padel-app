@@ -15,10 +15,16 @@ import 'package:padel_app/core/theme/app_theme.dart';
 
 /// Match form for creating or editing a match.
 /// Pass [matchId] to edit an existing match.
+/// Pass [startRecordingOnSave] to redirect to the recording screen after save.
 class MatchFormScreen extends ConsumerStatefulWidget {
   final String? matchId;
+  final bool startRecordingOnSave;
 
-  const MatchFormScreen({super.key, this.matchId});
+  const MatchFormScreen({
+    super.key,
+    this.matchId,
+    this.startRecordingOnSave = false,
+  });
 
   @override
   ConsumerState<MatchFormScreen> createState() => _MatchFormScreenState();
@@ -313,10 +319,12 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
       }
 
       final repo = ref.read(matchRepositoryProvider);
+      String? createdMatchId;
       if (_isEditing) {
         await repo.updateMatch(match, stats: stats);
       } else {
         final created = await repo.createMatch(match, stats: stats);
+        createdMatchId = created.id;
         // Calculate and save ELO rating for new matches
         final ratingService =
             RatingService(ref.read(ratingRepositoryProvider));
@@ -341,7 +349,12 @@ class _MatchFormScreenState extends ConsumerState<MatchFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context)!.matchSaved)),
         );
-        context.pop();
+        // If launched via the "Record a match" button, go straight to recording.
+        if (widget.startRecordingOnSave && createdMatchId != null) {
+          context.go('/matches/$createdMatchId/record');
+        } else {
+          context.pop();
+        }
       }
     } catch (e) {
       if (mounted) {

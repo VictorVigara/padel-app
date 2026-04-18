@@ -8,6 +8,8 @@
 	<string>Camera access is needed to record your padel match for analysis.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access is needed alongside camera recording.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is needed to select a match video for analysis.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

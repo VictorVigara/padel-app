@@ -149,3 +149,97 @@ final uploadNotifierProvider =
     StateNotifierProvider.autoDispose<UploadNotifier, UploadState>(
   (ref) => UploadNotifier(ref),
 );
+
+/// Handles upload + job insertion for gallery-picked videos.
+///
+/// Same flow as [UploadNotifier] but decoupled from the recording screen —
+/// no dependency on [recordingNotifierProvider], and does not delete the
+/// source file (it lives in the user's gallery).
+class GalleryUploadNotifier extends StateNotifier<UploadState> {
+  final UploadRepository _uploadRepo;
+  final ProcessingJobRepository _jobRepo;
+
+  GalleryUploadNotifier()
+      : _uploadRepo = UploadRepository(),
+        _jobRepo = ProcessingJobRepository(),
+        super(const UploadState());
+
+  Future<void> startUpload({
+    required String matchId,
+    required String videoPath,
+  }) async {
+    final file = File(videoPath);
+    final fileSizeBytes = await file.length();
+
+    state = state.copyWith(
+      flowState: UploadFlowState.fetchingUrl,
+      totalBytes: fileSizeBytes,
+      bytesUploaded: 0,
+    );
+
+    UploadUrlResponse urlResponse;
+    try {
+      urlResponse = await _uploadRepo.getUploadUrl(
+        matchId: matchId,
+        fileSizeBytes: fileSizeBytes,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        flowState: UploadFlowState.error,
+        errorMessage: 'Could not get upload URL: $e',
+      );
+      return;
+    }
+
+    state = state.copyWith(flowState: UploadFlowState.uploading);
+
+    try {
+      await for (final progress in _uploadRepo.uploadToR2(
+        uploadUrl: urlResponse.uploadUrl,
+        filePath: videoPath,
+      )) {
+        state = state.copyWith(
+          bytesUploaded: progress.bytesUploaded,
+          totalBytes: progress.totalBytes,
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        flowState: UploadFlowState.error,
+        errorMessage: 'Upload failed: $e',
+      );
+      return;
+    }
+
+    final r2AccountId =
+        const String.fromEnvironment('CLOUDFLARE_R2_ACCOUNT_ID');
+    final r2Bucket = const String.fromEnvironment(
+      'CLOUDFLARE_R2_BUCKET',
+      defaultValue: 'padel-match-videos',
+    );
+    final videoUrl = r2AccountId.isNotEmpty
+        ? 'https://$r2AccountId.r2.cloudflarestorage.com/$r2Bucket/${urlResponse.objectKey}'
+        : urlResponse.objectKey;
+
+    state = state.copyWith(flowState: UploadFlowState.insertingJob);
+
+    try {
+      await _jobRepo.insertJob(matchId: matchId, videoUrl: videoUrl);
+    } catch (e) {
+      state = state.copyWith(
+        flowState: UploadFlowState.error,
+        errorMessage: 'Failed to queue analysis: $e',
+      );
+      return;
+    }
+
+    // Do NOT delete the source file — it belongs to the user's gallery.
+
+    state = state.copyWith(flowState: UploadFlowState.done);
+  }
+}
+
+final galleryUploadNotifierProvider =
+    StateNotifierProvider<GalleryUploadNotifier, UploadState>(
+  (ref) => GalleryUploadNotifier(),
+);

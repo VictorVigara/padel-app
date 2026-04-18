@@ -82,8 +82,8 @@ final analysisStatusProvider = FutureProvider.autoDispose
 
 /// Creates a minimal draft match (status=recording) for the current user and
 /// returns the new match ID. Used by the camera button and gallery upload flow.
-final createDraftMatchProvider = Provider<Future<String> Function()>((ref) {
-  return () async {
+final createDraftMatchProvider = Provider<Future<String> Function({MatchStatus status})>((ref) {
+  return ({MatchStatus status = MatchStatus.recording}) async {
     final user = ref.read(currentUserProvider);
     if (user == null) throw Exception('Not logged in');
     final repo = ref.read(matchRepositoryProvider);
@@ -91,7 +91,7 @@ final createDraftMatchProvider = Provider<Future<String> Function()>((ref) {
       PadelMatch(
         createdBy: user.id,
         matchDate: DateTime.now(),
-        status: MatchStatus.recording,
+        status: status,
       ),
     );
     ref.invalidate(matchListProvider);

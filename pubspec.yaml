@@ -38,6 +38,9 @@ dependencies:
   # Background upload (NSURLSession on iOS, WorkManager on Android)
   background_downloader: ^8.7.0
 
+  # Video picker from gallery
+  image_picker: ^1.1.2
+
   # HTTP client (pre-signed URL fetch, processing job trigger)
   http: ^1.2.2
 

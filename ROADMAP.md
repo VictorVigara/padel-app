@@ -274,3 +274,9 @@ Apple requires in-app purchases for subscriptions sold inside iOS apps (30% cut 
 Options: Apple IAP only (simplest, required for App Store), or web-based subscription + unlock code (avoids Apple cut but violates App Store guidelines if done wrong).
 Recommendation: use Apple IAP via RevenueCat library — handles entitlements, restores, and cross-platform cleanly.
 
+---
+
+## Future improvements
+
+- **Gallery upload compression:** Reuse the recording compression pipeline (`ffmpeg_kit_flutter_new`, ~5 Mbps H.264) on gallery-picked videos before upload. Deferred until CV quality requirements are known — raw gallery videos may already meet pipeline needs, and compressing unnecessarily would add wait time with no benefit.
+

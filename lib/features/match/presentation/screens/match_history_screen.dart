@@ -5,6 +5,8 @@ import 'package:padel_app/l10n/app_localizations.dart';
 import 'package:padel_app/features/auth/presentation/providers/auth_providers.dart';
 import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/presentation/providers/match_providers.dart';
+import 'package:padel_app/features/recording/presentation/providers/upload_provider.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:padel_app/features/match/presentation/widgets/match_filter_sheet.dart';
 import 'package:padel_app/features/player_profile/presentation/providers/player_search_providers.dart';
 import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
@@ -24,6 +26,33 @@ class MatchHistoryScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.matchHistory),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.video_library),
+            tooltip: 'Upload from gallery',
+            onPressed: () async {
+              final video = await ImagePicker().pickVideo(
+                source: ImageSource.gallery,
+              );
+              if (video == null) return;
+              if (!context.mounted) return;
+              try {
+                final matchId = await ref.read(createDraftMatchProvider)(
+                  status: MatchStatus.processing,
+                );
+                ref.read(galleryUploadNotifierProvider.notifier).startUpload(
+                  matchId: matchId,
+                  videoPath: video.path,
+                );
+                if (context.mounted) context.push('/matches/$matchId/edit');
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not upload video: $e')),
+                  );
+                }
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.videocam),
             tooltip: 'Record a match',

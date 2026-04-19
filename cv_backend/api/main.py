@@ -50,6 +50,7 @@ _R2_ACCOUNT_ID = os.environ.get("CLOUDFLARE_R2_ACCOUNT_ID", "")
 _R2_ACCESS_KEY = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY", "")
 _R2_SECRET_KEY = os.environ.get("CLOUDFLARE_R2_SECRET_KEY", "")
 _R2_BUCKET = os.environ.get("CLOUDFLARE_R2_BUCKET", "padel-match-videos")
+_R2_VIDEO_PREFIX = os.environ.get("CLOUDFLARE_R2_VIDEO_PREFIX", "videos")
 
 
 def _get_r2_client():
@@ -77,7 +78,7 @@ async def generate_upload_url(request: UploadUrlRequest) -> UploadUrlResponse:
     if not _R2_ACCOUNT_ID or not _R2_ACCESS_KEY or not _R2_SECRET_KEY:
         raise HTTPException(status_code=500, detail="R2 credentials not configured")
 
-    object_key = f"videos/{request.match_id}.mp4"
+    object_key = f"{_R2_VIDEO_PREFIX}/{request.match_id}.mp4"
     expires_in = 3600  # 1 hour
 
     try:

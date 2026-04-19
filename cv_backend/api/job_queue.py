@@ -81,7 +81,29 @@ async def poll_once(client: Client) -> None:
 
     logger.info("Picked up job %s (match %s, attempt %d)", job_id, match_id, retry_count + 1)
 
-    # 2. Mark as processing
+    # 2. Check if court calibration is ready (don't process until user finishes calibration)
+    cal_result = (
+        client.table("court_calibrations")
+        .select("homography_matrix, status")
+        .eq("match_id", match_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    if not cal_result.data:
+        logger.info("Job %s: Court calibration not ready yet for match %s. Will check again in next poll cycle.", job_id, match_id)
+        return
+
+    if cal_result.data[0]["status"] != "success":
+        logger.warning("Job %s: Court calibration failed for match %s: %s",
+                      job_id, match_id, cal_result.data[0].get("error_message", "unknown error"))
+        return
+
+    homography_matrix = cal_result.data[0]["homography_matrix"]
+    logger.info("Job %s: Court calibration ready for match %s, proceeding with processing", job_id, match_id)
+
+    # 3. Mark as processing (only after calibration is confirmed)
     client.table("processing_jobs").update(
         {"status": "processing", "started_at": datetime.datetime.utcnow().isoformat()}
     ).eq("id", job_id).execute()
@@ -97,34 +119,62 @@ async def poll_once(client: Client) -> None:
     ).execute()
 
     try:
-        # 3. Download video to local temp path (stub — no real download yet)
-        # TODO Sprint 1: download from Supabase Storage before calling analyze_match
-        local_video_path = video_url  # placeholder — no file actually exists
+        # 4. Download video from R2 to local temp file
+        import tempfile
+        import boto3
+        from pathlib import Path
 
-        # 3.5. Fetch court calibration if available
-        homography_matrix = None
+        # Initialize S3 client for R2
+        account_id = os.environ["CLOUDFLARE_R2_ACCOUNT_ID"]
+        endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=endpoint_url,
+            aws_access_key_id=os.environ["CLOUDFLARE_R2_ACCESS_KEY"],
+            aws_secret_access_key=os.environ["CLOUDFLARE_R2_SECRET_KEY"],
+            region_name='auto'
+        )
+
+        # Parse video_url to extract object key
+        # Format: "https://<account>.r2.cloudflarestorage.com/<bucket>/<key>"
+        bucket = os.environ["CLOUDFLARE_R2_BUCKET"]
+
+        # Extract full key including folder structure (e.g., "videos/123.mp4")
+        if f"/{bucket}/" in video_url:
+            key = video_url.split(f"/{bucket}/", 1)[1]
+        else:
+            # Fallback: extract everything after the 4th slash
+            parts = video_url.split('/')
+            key = '/'.join(parts[4:]) if len(parts) > 4 else parts[-1]
+
+        # Download to temp file
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        tmp_file.close()
+        local_video_path = tmp_file.name
+
         try:
-            cal_result = (
-                client.table("court_calibrations")
-                .select("homography_matrix, status")
-                .eq("match_id", match_id)
-                .eq("status", "success")
-                .maybe_single()
-                .execute()
-            )
-            if cal_result.data:
-                homography_matrix = cal_result.data["homography_matrix"]
-                logger.info("Job %s: Using calibration data for match %s", job_id, match_id)
-            else:
-                logger.warning("Job %s: No calibration data found, proceeding without court projection", job_id)
-        except Exception as exc:
-            logger.warning("Job %s: Failed to fetch calibration: %s", job_id, exc)
+            with open(local_video_path, 'wb') as f:
+                s3_client.download_fileobj(bucket, key, f)
 
-        # 4. Run CV pipeline (stub in Sprint 0 — returns dummy data)
+            logger.info("Job %s: Downloaded video to %s, size: %d bytes",
+                       job_id, local_video_path, Path(local_video_path).stat().st_size)
+        except Exception as download_exc:
+            # Clean up temp file on download failure
+            Path(local_video_path).unlink(missing_ok=True)
+            raise RuntimeError(f"Failed to download video from R2: {download_exc}") from download_exc
+
+        # 5. Run CV pipeline
+        logger.info("Job %s: Starting CV pipeline...", job_id)
         analysis_result = analyze_match(local_video_path, AnalysisConfig(), homography_matrix=homography_matrix)
+        logger.info("Job %s: CV pipeline complete. Players: %d", job_id, len(analysis_result.players))
 
-        # 5. Write result to match_analyses
+        # 6. Write result to match_analyses
         result_dict = dataclasses.asdict(analysis_result)
+        logger.info("Job %s: Result dict preview:", job_id)
+        logger.info("  Players: %d", len(result_dict.get('players', [])))
+        for i, p in enumerate(result_dict.get('players', [])[:2]):
+            logger.info("  Player %d: distance=%.2f, coverage=%.2f%%",
+                       i, p.get('total_distance_m', 0), p.get('court_coverage_pct', 0))
         client.table("match_analyses").upsert(
             {
                 "match_id": match_id,
@@ -135,7 +185,17 @@ async def poll_once(client: Client) -> None:
             on_conflict="match_id",
         ).execute()
 
-        # 6. Mark job done
+        # 7. Delete raw video from R2 (processed video is no longer needed)
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=key)
+            logger.info("Job %s: Deleted raw video from R2: %s", job_id, key)
+        except Exception as delete_exc:
+            logger.warning("Job %s: Failed to delete video from R2 (non-fatal): %s", job_id, delete_exc)
+
+        # 8. Clean up local temp file
+        Path(local_video_path).unlink(missing_ok=True)
+
+        # 9. Mark job done
         client.table("processing_jobs").update(
             {
                 "status": "done",
@@ -147,6 +207,11 @@ async def poll_once(client: Client) -> None:
 
     except Exception as exc:
         logger.exception("Job %s failed: %s", job_id, exc)
+
+        # Clean up local temp file if it exists
+        if 'local_video_path' in locals():
+            from pathlib import Path
+            Path(local_video_path).unlink(missing_ok=True)
 
         new_retry_count = retry_count + 1
         if new_retry_count >= MAX_RETRIES:

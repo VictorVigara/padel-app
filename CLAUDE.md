@@ -678,9 +678,11 @@ Court dimensions: 10m wide × 20m long. Origin at k1 (near baseline left, closes
 to camera). Y-axis runs away from camera toward far baseline.
 
 **Three-step flow:**
-1. **Backend frame extraction** — extract a single frame from the uploaded video,
-   save to R2, store the frame URL in `processing_jobs`
-2. **Flutter calibration screen** — display the extracted frame fullscreen, user
+1. **On-device frame extraction** — immediately after recording stops (or gallery
+   video is picked), use `ffmpeg_kit_flutter_new` to extract a single frame from
+   the local video file. This happens before upload starts.
+2. **Flutter calibration screen** — shown while video uploads in the background.
+   Display the extracted frame fullscreen, user
    taps 12 keypoints in order (with skip + undo buttons), sends keypoints as JSON
    to backend. Skipped points are null.
 3. **Backend H matrix computation** — receives 12 keypoints (some null), filters
@@ -697,7 +699,7 @@ These are reference only — reimplement in our pipeline, do not copy-paste or d
 
 ### Sprint 2 status (as of 2026-04-19)
 - [x] Gallery upload: `image_picker` → R2 → `processing_jobs` → edit screen
-- [ ] Court calibration — backend frame extraction: extract frame from video, save to R2, store URL in Supabase
-- [ ] Court calibration — Flutter calibration screen: show frame, user taps 12 keypoints, skip/undo, send JSON to backend
+- [ ] Court calibration — on-device frame extraction: ffmpeg_kit_flutter_new extracts frame from local video after recording/gallery pick
+- [ ] Court calibration — Flutter calibration screen: show frame while upload runs in background, user taps 12 keypoints, skip/undo, send JSON to backend
 - [ ] Court calibration — backend H matrix computation: receive keypoints, cv2.findHomography with RANSAC, store H in Supabase
 - [ ] First Codemagic iOS build — smoke test camera + upload on real iPhone

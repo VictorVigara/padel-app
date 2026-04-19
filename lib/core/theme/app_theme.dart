@@ -16,6 +16,12 @@ class AppColors {
   static const win = Color(0xFF4CAF50);
   static const loss = Color(0xFFEF5350);
   static const draw = Color(0xFFFFA726);
+
+  // Player analysis colors
+  static const player1 = Color(0xFF4CAF50); // Green
+  static const player2 = Color(0xFFFF6F00); // Orange
+  static const player3 = Color(0xFF2196F3); // Blue
+  static const player4 = Color(0xFFE91E63); // Pink
 }
 
 class AppTheme {

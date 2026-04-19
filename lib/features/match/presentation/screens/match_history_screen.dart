@@ -6,7 +6,9 @@ import 'package:padel_app/features/auth/presentation/providers/auth_providers.da
 import 'package:padel_app/features/match/domain/models/match.dart';
 import 'package:padel_app/features/match/presentation/providers/match_providers.dart';
 import 'package:padel_app/features/recording/presentation/providers/upload_provider.dart';
+import 'package:padel_app/features/recording/domain/services/compression_service.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:padel_app/features/match/presentation/widgets/match_filter_sheet.dart';
 import 'package:padel_app/features/player_profile/presentation/providers/player_search_providers.dart';
 import 'package:padel_app/features/player_profile/presentation/providers/profile_providers.dart';
@@ -35,6 +37,21 @@ class MatchHistoryScreen extends ConsumerWidget {
               );
               if (video == null) return;
               if (!context.mounted) return;
+              // Extract frame before upload starts so it can be passed
+              // synchronously to the route as extra.
+              String? framePath;
+              try {
+                final tmpDir = await getTemporaryDirectory();
+                framePath =
+                    '${tmpDir.path}/frame_gallery_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                await CompressionService().extractFrame(
+                  inputPath: video.path,
+                  outputPath: framePath,
+                );
+              } catch (_) {
+                framePath = null;
+              }
+              if (!context.mounted) return;
               try {
                 final matchId = await ref.read(createDraftMatchProvider)(
                   status: MatchStatus.processing,
@@ -43,7 +60,9 @@ class MatchHistoryScreen extends ConsumerWidget {
                   matchId: matchId,
                   videoPath: video.path,
                 );
-                if (context.mounted) context.push('/matches/$matchId/edit');
+                if (context.mounted) {
+                  context.push('/matches/$matchId/edit', extra: framePath);
+                }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

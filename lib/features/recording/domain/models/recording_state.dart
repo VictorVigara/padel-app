@@ -24,6 +24,7 @@ class RecordingState {
   final String? courtResultMessage; // "Angle looks good ✓" or adjustment hint
   final bool courtOk;
   final String? videoPath; // set after recording stops
+  final String? framePath; // JPEG extracted from raw video before compression
   final String? errorMessage;
 
   const RecordingState({
@@ -36,6 +37,7 @@ class RecordingState {
     this.courtResultMessage,
     this.courtOk = false,
     this.videoPath,
+    this.framePath,
     this.errorMessage,
   });
 
@@ -51,6 +53,7 @@ class RecordingState {
     String? courtResultMessage,
     bool? courtOk,
     String? videoPath,
+    String? framePath,
     String? errorMessage,
   }) {
     return RecordingState(
@@ -63,6 +66,7 @@ class RecordingState {
       courtResultMessage: courtResultMessage ?? this.courtResultMessage,
       courtOk: courtOk ?? this.courtOk,
       videoPath: videoPath ?? this.videoPath,
+      framePath: framePath ?? this.framePath,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

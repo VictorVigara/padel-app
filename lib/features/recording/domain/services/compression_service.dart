@@ -9,6 +9,24 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 /// Streams progress as a double from 0.0 to 1.0.
 /// Throws [CompressionException] on failure.
 class CompressionService {
+  /// Extracts a single JPEG frame from [inputPath] at the 1-second mark.
+  ///
+  /// Saves to [outputPath] (should end in .jpg).
+  /// Throws [FrameExtractionException] on failure.
+  Future<void> extractFrame({
+    required String inputPath,
+    required String outputPath,
+  }) async {
+    final session = await FFmpegKit.execute(
+      '-ss 1 -i "$inputPath" -vframes 1 -q:v 2 -y "$outputPath"',
+    );
+    final returnCode = await session.getReturnCode();
+    if (!ReturnCode.isSuccess(returnCode)) {
+      final logs = await session.getAllLogsAsString();
+      throw FrameExtractionException('FFmpeg failed: $logs');
+    }
+  }
+
   /// Compress [inputPath] to [outputPath].
   ///
   /// [durationMs] is the total video duration in milliseconds, used to
@@ -69,4 +87,11 @@ class CompressionException implements Exception {
   const CompressionException(this.message);
   @override
   String toString() => 'CompressionException: $message';
+}
+
+class FrameExtractionException implements Exception {
+  final String message;
+  const FrameExtractionException(this.message);
+  @override
+  String toString() => 'FrameExtractionException: $message';
 }

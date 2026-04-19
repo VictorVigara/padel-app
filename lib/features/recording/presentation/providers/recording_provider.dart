@@ -121,6 +121,20 @@ class RecordingNotifier extends StateNotifier<RecordingState> {
 
     try {
       final rawPath = await _repo.stopRecording();
+
+      // Extract a frame from the raw video before compression starts.
+      final tmpDir = await getTemporaryDirectory();
+      final framePath = '${tmpDir.path}/frame_${state.matchId}.jpg';
+      try {
+        await _compression.extractFrame(
+          inputPath: rawPath,
+          outputPath: framePath,
+        );
+        state = state.copyWith(framePath: framePath);
+      } catch (_) {
+        // Non-fatal — calibration screen handles null framePath gracefully.
+      }
+
       state = state.copyWith(
         flowState: RecordingFlowState.compressing,
         videoPath: rawPath,

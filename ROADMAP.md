@@ -78,12 +78,14 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 ### Sprint 2 — Analysis Pipeline (3 weeks)
 **Goal:** Backend processes real match video and returns structured tracking data.
 
+- [x] Gallery upload: `image_picker` → same R2/processing_jobs flow as recording → match edit screen (no compression for gallery videos)
+- [ ] **Court calibration flow** (next — implementation order below):
+  - [ ] Backend frame extraction: extract a single frame from uploaded video, save to R2, store frame URL in Supabase
+  - [ ] Flutter calibration screen: show extracted frame, user taps 12 keypoints in order (skip/undo), sends JSON to backend
+  - [ ] Backend H matrix computation: receive 12 keypoints (some null), run cv2.findHomography with RANSAC, store 3×3 H matrix in Supabase
 - [ ] **First Codemagic iOS build** — smoke test camera lock, compression, and background upload on a real iPhone via TestFlight. Do not skip this; camera behaviour differs between Android and iOS and Sprint 3 depends on it.
-- [ ] Gallery upload: `image_picker` → same R2/processing_jobs flow as recording → match edit screen (no compression for gallery videos)
-- [ ] Court homography: detect court keypoints, compute H matrix (pixel → court-meter transform), store in Supabase
-- [ ] Replace `/analyze` stub with real job that runs homography on uploaded video
-- [ ] Backend polls `processing_jobs` table every 30s, picks up queued jobs
 - [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1fps
+- [ ] Backend polls `processing_jobs` table every 30s, picks up queued jobs
 - [ ] Aggregate to heatmap grid (20×10), total distance, court coverage %
 - [ ] Write `AnalysisResult` JSON to `match_analyses` table in Supabase
 - [ ] Delete raw video from Cloudflare R2 after successful processing

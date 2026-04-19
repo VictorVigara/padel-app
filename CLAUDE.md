@@ -633,22 +633,71 @@ ngrok http 8000   # copy the https URL into .env as BACKEND_URL
 
 ## Sprint 2 — Architectural decisions
 
-### Gallery upload flow
+### Gallery upload flow (complete)
 Same flow as recording: creates draft match → calls `POST /upload-url` → uploads original
 file directly to R2 via `background_downloader` → inserts `processing_jobs` row → navigates
 to match edit screen. No compression for gallery videos (original quality preserved).
 Uses `image_picker` package (`video_source: ImageSource.gallery`).
 
-### Court homography (CV backend)
-Goal: given a video frame, detect the 4 court corners + net line and compute the
-perspective transform matrix H that maps pixel coordinates → real-world court meters.
-- Input: single frame extracted from the uploaded video (first 30s, highest contrast)
-- Method: classical CV (Hough lines + corner detection) — no ML needed for court lines
-- Output: 3×3 homography matrix H stored as JSONB in `match_analyses` or `processing_jobs`
-- This H is the foundation for all player position data in Sprint 2+
+Key implementation details:
+- `GalleryUploadNotifier` in `upload_provider.dart` — reuses `UploadRepository` + `ProcessingJobRepository`, decoupled from `recordingNotifierProvider`
+- Provider is **not** autoDispose — must survive navigation to edit screen while upload continues in background
+- `createDraftMatchProvider` accepts optional `status` param — gallery passes `MatchStatus.processing` (skips recording state)
+- Draft match created only after user confirms video selection (picker returns non-null)
+- Source file is NOT deleted after upload (belongs to user's gallery, unlike compressed recording temps)
+- `NSPhotoLibraryUsageDescription` added to iOS Info.plist (required by image_picker)
 
-### Sprint 2 status
-- [ ] Gallery upload: `image_picker` → R2 → `processing_jobs` → edit screen
-- [ ] Court homography: detect keypoints, compute H, store in Supabase
-- [ ] Replace `/analyze` stub with real job that runs homography on uploaded video
+### Court calibration flow (manual 12-keypoint approach)
+Goal: compute the perspective transform matrix H that maps pixel coordinates →
+real-world court meters. Uses manual keypoint annotation instead of automatic
+detection — more reliable across court surfaces, lighting, and camera angles.
+
+**Why 12 keypoints, not 4:**
+Court corners are frequently occluded or off-frame depending on the phone mount
+position and court surroundings (fences, walls, glass). 12 keypoints across all
+major court lines give redundancy — the user skips any point they can't see.
+Minimum 4 non-null keypoints required for a valid homography.
+
+**Keypoint definitions (tap order in calibration UI):**
+| # | Name | Real-world (m) | Location |
+|---|------|-----------------|----------|
+| k1 | Near baseline left | (0, 0) | Origin |
+| k2 | Near baseline right | (10, 0) | |
+| k3 | Near service line left | (0, 3) | |
+| k4 | Near service line center | (5, 3) | |
+| k5 | Near service line right | (10, 3) | |
+| k6 | Net left | (0, 10) | |
+| k7 | Net right | (10, 10) | |
+| k8 | Far service line left | (0, 17) | |
+| k9 | Far service line center | (5, 17) | |
+| k10 | Far service line right | (10, 17) | |
+| k11 | Far baseline left | (0, 20) | |
+| k12 | Far baseline right | (10, 20) | |
+
+Court dimensions: 10m wide × 20m long. Origin at k1 (near baseline left, closest
+to camera). Y-axis runs away from camera toward far baseline.
+
+**Three-step flow:**
+1. **Backend frame extraction** — extract a single frame from the uploaded video,
+   save to R2, store the frame URL in `processing_jobs`
+2. **Flutter calibration screen** — display the extracted frame fullscreen, user
+   taps 12 keypoints in order (with skip + undo buttons), sends keypoints as JSON
+   to backend. Skipped points are null.
+3. **Backend H matrix computation** — receives 12 keypoints (some null), filters
+   to non-null pairs, runs `cv2.findHomography(src, dst, cv2.RANSAC, 5.0)` where
+   src = pixel points, dst = court meter points. Stores the 3×3 H matrix as JSONB
+   in Supabase.
+
+**Reference implementation:**
+Approach is adapted from the `padeldet` library (separate repo, not in this codebase):
+- `calibrate_court.py` — OpenCV desktop calibration tool
+- `court/models.py` + `court/projection.py` — CourtProjection class with
+  `findHomography` logic
+These are reference only — reimplement in our pipeline, do not copy-paste or depend on padeldet.
+
+### Sprint 2 status (as of 2026-04-19)
+- [x] Gallery upload: `image_picker` → R2 → `processing_jobs` → edit screen
+- [ ] Court calibration — backend frame extraction: extract frame from video, save to R2, store URL in Supabase
+- [ ] Court calibration — Flutter calibration screen: show frame, user taps 12 keypoints, skip/undo, send JSON to backend
+- [ ] Court calibration — backend H matrix computation: receive keypoints, cv2.findHomography with RANSAC, store H in Supabase
 - [ ] First Codemagic iOS build — smoke test camera + upload on real iPhone

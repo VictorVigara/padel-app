@@ -19,8 +19,12 @@ and deletes the video from R2.
 ### Install dependencies
 
 ```bash
-# From repo root — installs FastAPI, uvicorn, supabase-py, pydantic, python-dotenv
+# Option 1: From repo root (recommended)
 uv sync
+
+# Option 2: Using requirements.txt (if uv sync doesn't work)
+cd cv_backend
+uv pip install -r requirements.txt
 
 # On GPU workers only — installs torch, ultralytics (YOLO), boxmot (Sprint 2+)
 uv sync --extra cv
@@ -44,6 +48,44 @@ uv run uvicorn cv_backend.api.main:app --reload
 
 The server starts at `http://localhost:8000`. In Sprint 0 the endpoints are stubs —
 no real CV processing happens and no video is downloaded.
+
+---
+
+## Testing
+
+### Quick endpoint tests (before device testing)
+
+Run the test script to verify all endpoints are working:
+
+```bash
+cd cv_backend
+./test_endpoints.sh
+```
+
+This tests:
+- POST /calibrate (with valid/invalid data)
+- GET /analyze/{job_id}
+- POST /upload-url
+
+**Tip**: Run this after any backend changes, before testing on device. Saves time by catching issues early.
+
+### Manual testing with curl
+
+```bash
+# Test calibration endpoint
+curl -X POST http://localhost:8000/calibrate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "match_id": "123e4567-e89b-12d3-a456-426614174000",
+    "keypoints": [
+      {"label": "k1", "x_px": 100, "y_px": 500, "x_m": 0, "y_m": 0},
+      {"label": "k2", "x_px": 900, "y_px": 500, "x_m": 10, "y_m": 0},
+      null, null,
+      {"label": "k5", "x_px": 900, "y_px": 300, "x_m": 10, "y_m": 3},
+      {"label": "k6", "x_px": 100, "y_px": 200, "x_m": 0, "y_m": 10}
+    ]
+  }'
+```
 
 ---
 

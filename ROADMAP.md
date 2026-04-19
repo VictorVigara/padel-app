@@ -79,18 +79,20 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 **Goal:** Backend processes real match video and returns structured tracking data.
 
 - [x] Gallery upload: `image_picker` → same R2/processing_jobs flow as recording → match edit screen (no compression for gallery videos)
-- [ ] **Court calibration flow** (implementation order below):
+- [x] **Court calibration flow** (implementation order below):
   - [x] On-device frame extraction: use ffmpeg_kit_flutter_new to extract a frame from the local video after recording stops / gallery pick, before upload starts
   - [x] Flutter calibration screen: fixed crosshair on extracted frame, user pans/zooms image and taps Place for each of 12 keypoints (skip/undo/confirm), sends JSON to backend placeholder URL — branch feature/court-calibration-screen
-  - [ ] Backend H matrix computation: receive 12 keypoints (some null), run cv2.findHomography with RANSAC, store 3×3 H matrix in Supabase
+  - [x] Backend H matrix computation: receive 12 keypoints (some null), run cv2.findHomography with RANSAC, store 3×3 H matrix in Supabase (includes /calibrate endpoint + test_endpoint.py)
 - [ ] **First Codemagic iOS build** — smoke test camera lock, compression, and background upload on a real iPhone via TestFlight. Do not skip this; camera behaviour differs between Android and iOS and Sprint 3 depends on it.
-- [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1fps
-- [ ] Backend polls `processing_jobs` table every 30s, picks up queued jobs
-- [ ] Aggregate to heatmap grid (20×10), total distance, court coverage %
-- [ ] Write `AnalysisResult` JSON to `match_analyses` table in Supabase
-- [ ] Delete raw video from Cloudflare R2 after successful processing
+- [x] **Player tracking pipeline** — branch feature/player-tracking-sprint2:
+  - [x] Player tracking: YOLO8m + ByteTrack (via padeldet modules), output per-player positions
+  - [x] Backend polls `processing_jobs` table every 30s, picks up queued jobs (waits for calibration completion before processing)
+  - [x] Aggregate to heatmap grid (20×10), total distance, court coverage %
+  - [x] Write `AnalysisResult` JSON to `match_analyses` table in Supabase
+  - [x] Delete raw video from Cloudflare R2 after successful processing
+  - [x] Error handling: <4 players warning, 3-retry exhaustion, calibration validation
+  - [x] Configurable R2 video prefix, environment variable fixes (CLOUDFLARE_R2_*)
 - [ ] Push notification to phone when done
-- [ ] Error handling: bad angle, <4 players, timeout, 3-retry exhaustion
 - [ ] Processing progress updates (% complete) written to `processing_jobs`
 
 **Done when:** A real match video produces real heatmap data visible in the database. End-to-end latency (upload start → results available) under 20 minutes.

@@ -13,17 +13,20 @@ import modal
 
 app = modal.App("padel-cv-backend")
 
-# Lightweight image for Sprint 0 — no heavy CV deps.
-# In Sprint 2 replace with:
-#   modal.Image.debian_slim().pip_install("torch", "ultralytics", "boxmot")
+# Sprint 2: GPU-enabled image with full CV dependencies
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install("fastapi", "uvicorn", "supabase", "pydantic", "python-dotenv")
+    .pip_install_from_requirements("cv_backend/requirements.txt")
     .add_local_python_source("cv_backend")  # copies local package into the container
 )
 
 
-@app.function(image=image, secrets=[modal.Secret.from_name("padel-secrets")], schedule=modal.Period(seconds=30))
+@app.function(
+    image=image,
+    gpu="A10G",  # Sprint 2: GPU required for YOLO tracking
+    secrets=[modal.Secret.from_name("padel-secrets")],
+    schedule=modal.Period(seconds=30),
+)
 def run_poller() -> None:
     """Scheduled function — polls for one queued job every 30 seconds.
 

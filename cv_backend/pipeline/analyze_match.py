@@ -14,9 +14,15 @@ from dataclasses import dataclass, field
 
 @dataclass
 class AnalysisConfig:
-    fps_sample_rate: int = 10   # process every Nth frame (10fps sufficient)
-    court_side: str = "auto"    # which end camera is on
-    player_count: int = 4       # hard prior — always 4 in padel
+    """Configuration for match analysis pipeline."""
+
+    player_count: int = 4
+    fps_sample_rate: int = 1  # Process every Nth frame (1 = all frames, 10 = every 10th)
+    # Rationale: stride=1 gives best tracking quality, but costs more GPU time.
+    # For 90-min match at 30fps: 162k frames total.
+    # stride=1 → 162k frames (~8-10 min GPU)
+    # stride=10 → 16.2k frames (~1-2 min GPU, but tracking gaps)
+    # Surfaced as config to make cost/quality tradeoff explicit.
 
 
 @dataclass
@@ -61,63 +67,143 @@ def analyze_match(
                     (infra layer) is responsible for downloading the video
                     before calling this function.
         config:     Analysis settings. Defaults to AnalysisConfig() if None.
-        homography_matrix: Optional 3×3 homography matrix for court projection.
-                          If None, analysis proceeds without court projection
-                          (metrics will be limited or estimated).
+        homography_matrix: 3×3 homography matrix for court projection.
+                          REQUIRED in Sprint 2+ for meaningful distance/coverage.
 
     Returns:
         AnalysisResult with per-player heatmaps, distance, and positions.
 
     Raises:
-        ValueError: If court detection fails or fewer than 3 players are
-                    tracked for a sustained period.
+        ValueError: If homography_matrix is missing or tracking fails.
     """
+    import time
+    import numpy as np
+    from cv_backend.padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
+    from cv_backend.padeldet.video import VideoInfo, frame_generator
+    from cv_backend.pipeline.court_projection import CourtProjection
+
+    start_time = time.time()
+
     if config is None:
         config = AnalysisConfig()
 
-    # Convert H matrix to CourtProjection if provided
-    court_projection = None
-    if homography_matrix is not None:
-        from cv_backend.pipeline.court_projection import CourtProjection
-        court_projection = CourtProjection(homography_matrix)
+    # Homography is required for meaningful results
+    if homography_matrix is None:
+        raise ValueError("homography_matrix is required. Cannot compute distance/coverage without court projection.")
 
-    # --- Sprint 2 TODO: Replace stub with real pipeline ---
-    # If court_projection is None, player tracking can still run but
-    # metrics will be degraded (no heatmap, estimated distance)
-    #
-    # Example:
-    #   tracks = player_tracker.track(video_path, config)
-    #   if court_projection:
-    #       positions = [court_projection.project_point(t.bbox.bottom_center) for t in tracks]
-    #       heatmap = compute_heatmap(positions)
-    #   else:
-    #       heatmap = None  # or compute pixel-space heatmap
+    # 1. Get video info
+    video_info = VideoInfo.from_path(video_path)
 
-    # --- STUB: returns dummy data so the infra layer can be tested end-to-end ---
-    # Replace this block in Sprint 2 with real pipeline calls:
-    #   homography = court_detector.detect(video_path)
-    #   tracks = player_tracker.track(video_path, homography, config)
-    #   return _aggregate(tracks, config)
+    # 2. Initialize court projection
+    court_projection = CourtProjection(homography_matrix)
 
-    dummy_heatmap = [[0.0] * 10 for _ in range(20)]
-    dummy_positions = [Position(t=float(i), x=5.0, y=10.0) for i in range(5)]
+    # 3. Initialize player tracker
+    tracker_config = PlayerTrackerConfig(
+        model_path="yolov8m.pt",  # Auto-downloads on first run
+        confidence=0.5,
+        iou_threshold=0.7,
+        batch_size=8,
+        max_players=4,
+    )
+    tracker = PlayerTracker(
+        config=tracker_config,
+        video_info=video_info,
+        court_projection=court_projection,
+    )
 
-    dummy_players = [
-        PlayerAnalysis(
-            track_id=f"player_{i}",
-            total_distance_m=0.0,
-            court_coverage_pct=0.0,
-            heatmap=dummy_heatmap,
-            positions=dummy_positions,
-        )
-        for i in range(config.player_count)
-    ]
+    # 4. Process video at configured sample rate
+    stride = config.fps_sample_rate
+    frames = frame_generator(video_path, stride=stride)
+    results = tracker.detect_and_track(frames)
+
+    # 5. Aggregate results
+    analysis = _aggregate_tracking_results(
+        results,
+        court_projection,
+        video_info,
+        stride,
+    )
+
+    duration_s = time.time() - start_time
+    analysis.processing_meta.duration_s = duration_s
+    analysis.processing_meta.frames_processed = len(results)
+
+    return analysis
+
+
+def _aggregate_tracking_results(
+    frame_detections: list,  # list[FrameDetections] from padeldet
+    court_projection,  # CourtProjection
+    video_info,  # VideoInfo from padeldet
+    stride: int,
+) -> AnalysisResult:
+    """Convert tracking results to AnalysisResult format."""
+    from collections import defaultdict
+    import numpy as np
+
+    # Group detections by track_id
+    tracks: dict[int, list] = defaultdict(list)
+    for fd in frame_detections:
+        for det in fd.detections:
+            if det.track_id is not None:
+                tracks[det.track_id].append(det)
+
+    warnings = []
+    if len(tracks) == 0:
+        warnings.append("No players detected")
+    elif len(tracks) < 4:
+        warnings.append(f"Only {len(tracks)} players tracked (expected 4)")
+
+    players = []
+    for track_id, detections in tracks.items():
+        positions = []
+        heatmap_grid = np.zeros((20, 10))  # 20m x 10m court, 1m cells
+
+        for i, det in enumerate(detections):
+            # Project bottom-center of bbox to court meters
+            bbox_bottom = det.bbox.bottom_center
+            x_m, y_m = court_projection.project_point(bbox_bottom)
+
+            # Only count if inside court bounds
+            if court_projection.is_inside_court((x_m, y_m)):
+                # Time in seconds (e.g. stride=1, fps=30 → 30fps tracking → 0.033s per frame)
+                t_s = i * stride / video_info.fps
+                positions.append(Position(t=t_s, x=x_m, y=y_m))
+
+                # Update heatmap (clamp to valid grid)
+                grid_y = int(np.clip(y_m, 0, 19.99))
+                grid_x = int(np.clip(x_m, 0, 9.99))
+                heatmap_grid[grid_y, grid_x] += 1
+
+        # Normalize heatmap to 0-1 range
+        if heatmap_grid.max() > 0:
+            heatmap_grid = heatmap_grid / heatmap_grid.max()
+
+        # Compute total distance (Euclidean sum between consecutive positions)
+        total_distance = 0.0
+        if len(positions) > 1:
+            for i in range(1, len(positions)):
+                dx = positions[i].x - positions[i-1].x
+                dy = positions[i].y - positions[i-1].y
+                total_distance += np.sqrt(dx*dx + dy*dy)
+
+        # Compute court coverage (% of 1m cells visited)
+        cells_visited = np.count_nonzero(heatmap_grid)
+        coverage_pct = (cells_visited / 200.0) * 100  # 200 cells total (20m × 10m grid)
+
+        players.append(PlayerAnalysis(
+            track_id=f"player_{track_id}",
+            total_distance_m=total_distance,
+            court_coverage_pct=coverage_pct,
+            heatmap=heatmap_grid.tolist(),
+            positions=positions,
+        ))
 
     return AnalysisResult(
-        players=dummy_players,
+        players=players,
         processing_meta=ProcessingMeta(
-            duration_s=0.0,
-            frames_processed=0,
-            warnings=["STUB: no real CV processing performed"],
+            duration_s=0.0,  # Set by caller
+            frames_processed=0,  # Set by caller
+            warnings=warnings,
         ),
     )

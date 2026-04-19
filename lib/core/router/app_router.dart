@@ -14,6 +14,7 @@ import 'package:padel_app/features/player_profile/presentation/screens/profile_s
 import 'package:padel_app/core/widgets/app_shell.dart';
 import 'package:padel_app/features/recording/presentation/screens/court_calibration_screen.dart';
 import 'package:padel_app/features/recording/presentation/screens/recording_screen.dart';
+import 'package:padel_app/features/analysis/presentation/screens/match_analysis_screen.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -106,6 +107,13 @@ class AppRouter {
         path: '/matches/:id/record',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => RecordingScreen(
+          matchId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '/matches/:id/analysis',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => MatchAnalysisScreen(
           matchId: state.pathParameters['id']!,
         ),
       ),

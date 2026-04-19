@@ -381,6 +381,9 @@ class _MatchDetailBody extends ConsumerWidget {
             ),
           ),
 
+          // View Analysis button
+          _buildAnalysisButton(context, ref),
+
           // Stats section
           if (stats.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -412,6 +415,32 @@ class _MatchDetailBody extends ConsumerWidget {
           const SizedBox(height: 32),
         ],
       ),
+    );
+  }
+
+  Widget _buildAnalysisButton(BuildContext context, WidgetRef ref) {
+    final matchId = match.id!;
+    final analysisStatusAsync = ref.watch(analysisStatusProvider(matchId));
+    return analysisStatusAsync.maybeWhen(
+      data: (info) {
+        if (info?.status == AnalysisStatus.done) {
+          return Column(
+            children: [
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => context.push('/matches/$matchId/analysis'),
+                  icon: const Icon(Icons.analytics),
+                  label: const Text('View Analysis'),
+                ),
+              ),
+            ],
+          );
+        }
+        return const SizedBox.shrink();
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 

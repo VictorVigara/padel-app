@@ -202,10 +202,13 @@ class _CourtCalibrationScreenState extends State<CourtCalibrationScreen> {
         };
       });
 
-      // TODO: replace with real backend URL once POST /calibrate is defined.
-      const placeholderUrl = 'https://placeholder.invalid/calibrate';
+      final backendUrl = const String.fromEnvironment(
+        'BACKEND_URL',
+        defaultValue: 'http://localhost:8000',
+      );
+      final calibrateUrl = '$backendUrl/calibrate';
       await http.post(
-        Uri.parse(placeholderUrl),
+        Uri.parse(calibrateUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'match_id': widget.matchId,

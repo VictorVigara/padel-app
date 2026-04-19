@@ -40,3 +40,26 @@ class UploadUrlResponse(BaseModel):
     upload_url: str   # pre-signed PUT URL, valid for 1 hour
     object_key: str   # R2 key: "videos/{match_id}.mp4"
     expires_at: str   # ISO-8601 timestamp
+
+
+class CalibrationKeypointInput(BaseModel):
+    """Single keypoint from Flutter calibration screen."""
+    label: str          # e.g., "k1"
+    x_px: float         # Pixel X coordinate
+    y_px: float         # Pixel Y coordinate
+    x_m: float          # Real-world court X (0–10m)
+    y_m: float          # Real-world court Y (0–20m)
+
+
+class CalibrationRequest(BaseModel):
+    """Calibration data sent from Flutter app."""
+    match_id: str
+    keypoints: list[CalibrationKeypointInput | None]  # 12 items, some may be None
+    frame_base64: str | None = None  # Optional: for debug visualization
+
+
+class CalibrationResponse(BaseModel):
+    """Response after processing calibration."""
+    success: bool
+    message: str
+    homography_matrix: list[list[float]] | None = None  # 3×3 matrix if success

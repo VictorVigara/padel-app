@@ -101,8 +101,27 @@ async def poll_once(client: Client) -> None:
         # TODO Sprint 1: download from Supabase Storage before calling analyze_match
         local_video_path = video_url  # placeholder — no file actually exists
 
+        # 3.5. Fetch court calibration if available
+        homography_matrix = None
+        try:
+            cal_result = (
+                client.table("court_calibrations")
+                .select("homography_matrix, status")
+                .eq("match_id", match_id)
+                .eq("status", "success")
+                .maybe_single()
+                .execute()
+            )
+            if cal_result.data:
+                homography_matrix = cal_result.data["homography_matrix"]
+                logger.info("Job %s: Using calibration data for match %s", job_id, match_id)
+            else:
+                logger.warning("Job %s: No calibration data found, proceeding without court projection", job_id)
+        except Exception as exc:
+            logger.warning("Job %s: Failed to fetch calibration: %s", job_id, exc)
+
         # 4. Run CV pipeline (stub in Sprint 0 — returns dummy data)
-        analysis_result = analyze_match(local_video_path, AnalysisConfig())
+        analysis_result = analyze_match(local_video_path, AnalysisConfig(), homography_matrix=homography_matrix)
 
         # 5. Write result to match_analyses
         result_dict = dataclasses.asdict(analysis_result)

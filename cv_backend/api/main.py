@@ -25,10 +25,13 @@ from fastapi import FastAPI, HTTPException
 from supabase import Client, create_client
 
 from cv_backend.api.models import (
+    CalibrationRequest,
+    CalibrationResponse,
     JobStatusResponse,
     UploadUrlRequest,
     UploadUrlResponse,
 )
+from cv_backend.pipeline.court_projection import compute_homography
 
 load_dotenv()
 
@@ -149,3 +152,115 @@ async def get_analysis_status(job_id: str) -> JobStatusResponse:
         results = analysis_result.data.get("result")
 
     return JobStatusResponse(status="done", results=results)
+
+
+@app.post("/calibrate", response_model=CalibrationResponse, status_code=200)
+async def calibrate_court(request: CalibrationRequest) -> CalibrationResponse:
+    """
+    Receive 12 court keypoints from Flutter, compute homography matrix,
+    and store in court_calibrations table.
+    """
+    import base64
+    import numpy as np
+    import cv2
+
+    # Filter out null keypoints and extract pixel coordinates
+    keypoints_pixel = []
+    keypoint_indices = []
+
+    for i, kp in enumerate(request.keypoints):
+        if kp is not None:
+            keypoints_pixel.append((kp.x_px, kp.y_px))
+            keypoint_indices.append(i)
+
+    keypoints_count = len(keypoints_pixel)
+
+    # Validate minimum keypoints
+    if keypoints_count < 4:
+        try:
+            supabase.table("court_calibrations").insert({
+                "match_id": request.match_id,
+                "keypoints": [kp.model_dump() if kp else None for kp in request.keypoints],
+                "keypoints_count": keypoints_count,
+                "status": "failed",
+                "error_message": f"Insufficient keypoints: {keypoints_count} (minimum 4)",
+            }).execute()
+        except Exception:
+            pass  # Best effort
+
+        return CalibrationResponse(
+            success=False,
+            message=f"Need at least 4 keypoints, got {keypoints_count}",
+        )
+
+    # Compute homography (pass indices so court coords are correctly paired)
+    try:
+        H = compute_homography(keypoints_pixel, keypoint_indices)
+        H_list = H.tolist()  # Convert numpy array to list for JSON
+
+        # Store in database
+        supabase.table("court_calibrations").upsert({
+            "match_id": request.match_id,
+            "keypoints": [kp.model_dump() if kp else None for kp in request.keypoints],
+            "keypoints_count": keypoints_count,
+            "homography_matrix": H_list,
+            "status": "success",
+            "error_message": None,
+        }, on_conflict="match_id").execute()
+
+        # Debug visualization (if enabled and frame provided)
+        debug_enabled = os.environ.get("DEBUG_SAVE_CALIBRATION_IMAGE", "false").lower() == "true"
+        if debug_enabled and request.frame_base64:
+            try:
+                # Decode base64 image
+                img_data = base64.b64decode(request.frame_base64)
+                img_array = np.frombuffer(img_data, dtype=np.uint8)
+                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
+                if img is not None:
+                    # Draw keypoints
+                    for i, kp in enumerate(request.keypoints):
+                        if kp is not None:
+                            x, y = int(kp.x_px), int(kp.y_px)
+                            # Draw circle
+                            cv2.circle(img, (x, y), 10, (0, 255, 0), 2)
+                            # Draw label
+                            cv2.putText(img, kp.label, (x + 15, y - 10),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+                    # Save to /tmp
+                    output_path = f"/tmp/debug_calibration_{request.match_id}.jpg"
+                    cv2.imwrite(output_path, img)
+                    print(f"Debug: Saved calibration visualization to {output_path}")
+            except Exception as e:
+                print(f"Debug visualization failed: {e}")
+
+        return CalibrationResponse(
+            success=True,
+            message=f"Homography computed successfully from {keypoints_count} keypoints",
+            homography_matrix=H_list,
+        )
+
+    except ValueError as exc:
+        # RANSAC failed or other computation error
+        try:
+            supabase.table("court_calibrations").upsert({
+                "match_id": request.match_id,
+                "keypoints": [kp.model_dump() if kp else None for kp in request.keypoints],
+                "keypoints_count": keypoints_count,
+                "status": "failed",
+                "error_message": str(exc),
+            }, on_conflict="match_id").execute()
+        except Exception:
+            pass  # Best effort
+
+        return CalibrationResponse(
+            success=False,
+            message=f"Homography computation failed: {exc}",
+        )
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Calibration failed: {exc}"
+        ) from exc

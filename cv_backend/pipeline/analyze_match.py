@@ -48,7 +48,11 @@ class AnalysisResult:
     processing_meta: ProcessingMeta
 
 
-def analyze_match(video_path: str, config: AnalysisConfig | None = None) -> AnalysisResult:
+def analyze_match(
+    video_path: str,
+    config: AnalysisConfig | None = None,
+    homography_matrix: list[list[float]] | None = None,
+) -> AnalysisResult:
     """
     Run the full CV pipeline on a match video.
 
@@ -57,6 +61,9 @@ def analyze_match(video_path: str, config: AnalysisConfig | None = None) -> Anal
                     (infra layer) is responsible for downloading the video
                     before calling this function.
         config:     Analysis settings. Defaults to AnalysisConfig() if None.
+        homography_matrix: Optional 3×3 homography matrix for court projection.
+                          If None, analysis proceeds without court projection
+                          (metrics will be limited or estimated).
 
     Returns:
         AnalysisResult with per-player heatmaps, distance, and positions.
@@ -67,6 +74,24 @@ def analyze_match(video_path: str, config: AnalysisConfig | None = None) -> Anal
     """
     if config is None:
         config = AnalysisConfig()
+
+    # Convert H matrix to CourtProjection if provided
+    court_projection = None
+    if homography_matrix is not None:
+        from cv_backend.pipeline.court_projection import CourtProjection
+        court_projection = CourtProjection(homography_matrix)
+
+    # --- Sprint 2 TODO: Replace stub with real pipeline ---
+    # If court_projection is None, player tracking can still run but
+    # metrics will be degraded (no heatmap, estimated distance)
+    #
+    # Example:
+    #   tracks = player_tracker.track(video_path, config)
+    #   if court_projection:
+    #       positions = [court_projection.project_point(t.bbox.bottom_center) for t in tracks]
+    #       heatmap = compute_heatmap(positions)
+    #   else:
+    #       heatmap = None  # or compute pixel-space heatmap
 
     # --- STUB: returns dummy data so the infra layer can be tested end-to-end ---
     # Replace this block in Sprint 2 with real pipeline calls:

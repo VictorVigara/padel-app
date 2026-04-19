@@ -79,9 +79,9 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 **Goal:** Backend processes real match video and returns structured tracking data.
 
 - [x] Gallery upload: `image_picker` → same R2/processing_jobs flow as recording → match edit screen (no compression for gallery videos)
-- [ ] **Court calibration flow** (next — implementation order below):
+- [ ] **Court calibration flow** (implementation order below):
   - [ ] On-device frame extraction: use ffmpeg_kit_flutter_new to extract a frame from the local video after recording stops / gallery pick, before upload starts
-  - [ ] Flutter calibration screen: show extracted frame while video uploads in background, user taps 12 keypoints in order (skip/undo), sends JSON to backend
+  - [x] Flutter calibration screen: fixed crosshair on extracted frame, user pans/zooms image and taps Place for each of 12 keypoints (skip/undo/confirm), sends JSON to backend placeholder URL — branch feature/court-calibration-screen
   - [ ] Backend H matrix computation: receive 12 keypoints (some null), run cv2.findHomography with RANSAC, store 3×3 H matrix in Supabase
 - [ ] **First Codemagic iOS build** — smoke test camera lock, compression, and background upload on a real iPhone via TestFlight. Do not skip this; camera behaviour differs between Android and iOS and Sprint 3 depends on it.
 - [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1fps

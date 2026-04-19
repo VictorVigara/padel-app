@@ -682,9 +682,8 @@ to camera). Y-axis runs away from camera toward far baseline.
    video is picked), use `ffmpeg_kit_flutter_new` to extract a single frame from
    the local video file. This happens before upload starts.
 2. **Flutter calibration screen** — shown while video uploads in the background.
-   Display the extracted frame fullscreen, user
-   taps 12 keypoints in order (with skip + undo buttons), sends keypoints as JSON
-   to backend. Skipped points are null.
+   Fixed crosshair centred on the viewport; user pans/zooms image and taps Place
+   for each keypoint. Skipped points are null. Sends JSON to backend on Confirm.
 3. **Backend H matrix computation** — receives 12 keypoints (some null), filters
    to non-null pairs, runs `cv2.findHomography(src, dst, cv2.RANSAC, 5.0)` where
    src = pixel points, dst = court meter points. Stores the 3×3 H matrix as JSONB
@@ -697,9 +696,59 @@ Approach is adapted from the `padeldet` library (separate repo, not in this code
   `findHomography` logic
 These are reference only — reimplement in our pipeline, do not copy-paste or depend on padeldet.
 
+### Court calibration screen — implementation decisions (2026-04-19)
+
+**Interaction model: crosshair, not tap-to-place**
+User pans/zooms the image and taps Place to confirm the keypoint under the fixed
+crosshair. Tap-to-place was scrapped because coordinate transforms from tap
+position → image pixels were unreliable across zoom levels and portrait/landscape
+letterboxing. The crosshair approach eliminates all tap-coordinate math.
+
+**Coordinate math: `TransformationController.toScene()`**
+The crosshair centre in viewport space is `viewportBox.size.center(Offset.zero)`.
+`_transformController.toScene(crosshairInViewport)` converts this to scene
+(inner Stack) coordinates accounting for current pan/zoom — no manual
+`Matrix4.inverted()` needed. Then letterbox offset is subtracted and the result
+is scaled by `_imageSize / imageRect.size` to get original pixel coordinates.
+
+**`_viewportKey` on the `InteractiveViewer` itself** (not the Expanded wrapper).
+This makes `viewportBox.size` and viewport origin unambiguously correct — the
+matrix operates in this same space.
+
+**Dot storage: normalised 0–1 fractions**
+`_normTaps` stores each placed keypoint as a fraction of the image rect
+(0–1 in x and y). `_buildDots()` recomputes `Positioned` left/top on every build
+from the current `_getImageRect()`, so dots track the image through layout changes.
+`_pixelTaps` stores original image pixel coords separately for the backend payload.
+
+**Transform reset on completion**
+When all 12 steps are done, `_transformController.value = Matrix4.identity()` is
+called immediately after `setState`. This resets zoom/pan so dots rendered at
+Stack-natural coordinates align with the image on the confirm screen.
+
+**Crosshair placement: Option B**
+Crosshair is a `CustomPaint(size: Size(60,60))` inside `Center` inside the outer
+Stack that wraps `InteractiveViewer`. `Center` within the Expanded's Stack centres
+it on the viewport area. `IgnorePointer` passes pan/zoom gestures through to
+`InteractiveViewer` underneath.
+
+**Route:** `/matches/:id/calibrate` — both recording and gallery flows navigate
+here before the edit screen. `framePath` passed as `state.extra as String?`. If
+`framePath` is null, calibration is skipped and the screen immediately redirects
+to `/matches/:id/edit`.
+
+**New files:**
+- `lib/features/recording/domain/models/court_keypoints.dart` — 12 keypoint definitions
+- `lib/features/recording/presentation/screens/court_calibration_screen.dart`
+
+**Modified files:**
+- `lib/core/router/app_router.dart` — `/matches/:id/calibrate` route added
+- `lib/features/recording/presentation/screens/recording_screen.dart` — done nav → `/calibrate`
+- `lib/features/match/presentation/screens/match_history_screen.dart` — gallery nav → `/calibrate`
+
 ### Sprint 2 status (as of 2026-04-19)
 - [x] Gallery upload: `image_picker` → R2 → `processing_jobs` → edit screen
 - [ ] Court calibration — on-device frame extraction: ffmpeg_kit_flutter_new extracts frame from local video after recording/gallery pick
-- [ ] Court calibration — Flutter calibration screen: show frame while upload runs in background, user taps 12 keypoints, skip/undo, send JSON to backend
+- [x] Court calibration — Flutter calibration screen: crosshair-based keypoint placement, pan/zoom via InteractiveViewer, Place/Skip/Undo/Confirm — branch feature/court-calibration-screen, tested on Android, payload confirmed correct in logs
 - [ ] Court calibration — backend H matrix computation: receive keypoints, cv2.findHomography with RANSAC, store H in Supabase
 - [ ] First Codemagic iOS build — smoke test camera + upload on real iPhone

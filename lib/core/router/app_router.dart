@@ -12,6 +12,7 @@ import 'package:padel_app/features/player_profile/presentation/screens/player_pr
 import 'package:padel_app/features/player_profile/presentation/screens/profile_screen.dart';
 import 'package:padel_app/features/player_profile/presentation/screens/profile_setup_screen.dart';
 import 'package:padel_app/core/widgets/app_shell.dart';
+import 'package:padel_app/features/recording/presentation/screens/court_calibration_screen.dart';
 import 'package:padel_app/features/recording/presentation/screens/recording_screen.dart';
 
 class AppRouter {
@@ -91,6 +92,14 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => MatchFormScreen(
           matchId: state.pathParameters['id'],
+        ),
+      ),
+      GoRoute(
+        path: '/matches/:id/calibrate',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => CourtCalibrationScreen(
+          matchId: state.pathParameters['id']!,
+          framePath: state.extra as String?,
         ),
       ),
       GoRoute(

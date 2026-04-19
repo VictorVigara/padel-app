@@ -61,7 +61,7 @@ class MatchHistoryScreen extends ConsumerWidget {
                   videoPath: video.path,
                 );
                 if (context.mounted) {
-                  context.push('/matches/$matchId/edit', extra: framePath);
+                  context.push('/matches/$matchId/calibrate', extra: framePath);
                 }
               } catch (e) {
                 if (context.mounted) {

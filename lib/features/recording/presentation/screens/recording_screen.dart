@@ -76,7 +76,7 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             context.go(
-              '/matches/${widget.matchId}/edit',
+              '/matches/${widget.matchId}/calibrate',
               extra: next.framePath,
             );
           }

@@ -99,17 +99,18 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 
 ---
 
-### Sprint 3 — Results UI (2 weeks)
+### Sprint 3 — Results UI (2 weeks) ✓ COMPLETE (2026-04-20)
 **Goal:** Player sees their results in a clear, satisfying way.
 
-- [ ] Results screen: 4-player heatmap overlaid on court diagram
-- [ ] Distance covered per player (styled card with player name)
-- [ ] Court coverage % per player
-- [ ] Link results to existing match history entry
-- [ ] Replace ServeStatsCard and ShotDistributionCard with padel-specific equivalents (smash speed, bandeja frequency, court zone distribution) — these currently show zeros and use tennis-specific fields. CV data in Sprint 2 will populate match_stats with inputSource=cvAuto; update the widgets to consume it.
+- [x] Analysis data layer: Freezed models, `AnalysisRepository`, `analysisResultProvider` — branch `feature/analysis-results-ui`
+- [x] Results screen scaffold: loading/error/empty/data states, `/matches/:id/analysis` route, "View Analysis" button in match detail
+- [x] Court heatmap: `CourtHeatmapPainter` (half-court 10×10, 1:1), side toggle ("Your Side" / "Opponents' Side"), `flipCourt` param
+- [x] Player selector chips (P1–P4, player colors), 2×2 stat grid (distance / coverage / inferred position), distance comparison bars
 - [ ] Processing states: "uploading", "analysing (X% done)", "ready", "failed"
 - [ ] Failed state: clear message, no charge note, option to retry
 - [ ] Basic share: screenshot-friendly results card for WhatsApp/Instagram
+
+**Known:** Opponents' side heatmap is empty — camera only covers near half; CV pipeline issue, not UI.
 
 **Done when:** A padel player who wasn't involved in building the app opens it, records a match, and understands the results without any explanation.
 

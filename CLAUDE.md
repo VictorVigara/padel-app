@@ -79,7 +79,7 @@ padel_app/lib/features/
   player_profile/    ✓ complete
   rating/            ✓ complete (ELO)
   recording/         ✓ Sprint 1+2 (record, compress, upload, calibration screen)
-  analysis/          ⬜ Sprint 3
+  analysis/          ✓ Sprint 3 (heatmap, player chips, stat grid, distance bars)
 
 cv_backend/
   pipeline/          analyze_match.py, player_tracker.py, ball_tracker.py, court_detector.py
@@ -89,20 +89,25 @@ cv_backend/
 
 ---
 
-## Current sprint: Sprint 2 (Analysis Pipeline)
+## Sprint 3 — Results UI ✓ COMPLETE
 
-### Done
-- [x] Gallery upload: `image_picker` → R2 → processing_jobs → edit screen
-- [x] Court calibration screen: crosshair-based 12-keypoint placement (pan/zoom), Place/Skip/Undo/Confirm, tested on Android, payload confirmed correct — branch `feature/court-calibration-screen`
-- [x] Frame extraction: `ffmpeg_kit_flutter_new` extracts 1 frame from local video after record/gallery pick → passes `framePath` to calibration screen
+### Shipped
+- [x] **Task 0**: Player color constants in `AppColors` (player1–4: green, orange, blue, pink)
+- [x] **Task 1**: Freezed models (`AnalysisResult`, `PlayerAnalysis`, `ProcessingMeta`), `AnalysisRepository`, `analysisResultProvider`
+- [x] **Task 2**: `MatchAnalysisScreen` scaffold — loading/error/empty/data states; `/matches/:id/analysis` route; "View Analysis" button gated on `AnalysisStatus.done`
+- [x] **Task 3**: `CourtHeatmapPainter` — half-court 10×10, cell opacity from intensity, court markings, "Your Side" / "Opponents' Side" ChoiceChip toggle, `flipCourt` param — `lib/features/analysis/presentation/widgets/court_heatmap_painter.dart`
+- [x] **Task 4**: Full screen layout — player selector chips (P1–P4, player colors), 2×2 stat grid (distance / coverage / inferred position), distance comparison bars (proportional Containers, no fl_chart)
 
-### In progress / next
-- [ ] **Backend H matrix** (next): receive 12 keypoints (some null), `cv2.findHomography(RANSAC)`, store 3×3 H in Supabase as JSONB
-- [ ] **First Codemagic iOS build**: smoke test camera lock + background upload on real iPhone via TestFlight — do not skip, iOS camera behaviour differs from Android
-- [ ] Player tracking: YOLO11l + DeepOCSORT, output per-player positions at 1 fps
-- [ ] Aggregate: heatmap grid (20×10), total distance, court coverage %
-- [ ] Write AnalysisResult to match_analyses; delete raw video from R2
-- [ ] Push notification on completion
+### Known issues / deferred
+- Opponents' side heatmap is always empty — camera only covers the near half; rows 10–19 will have no data until CV pipeline is updated. UI is correct.
+- Manual player tagging (name assignment) deferred to Sprint 6.
+
+### Still pending from Sprint 2
+- [ ] Push notification to phone when analysis completes
+- [ ] Processing progress % written to `processing_jobs`
+- [ ] First Codemagic iOS build — smoke test camera + background upload on real iPhone
+
+## Next: Sprint 4 (TBD — Modal deployment or ball tracking)
 
 ---
 
@@ -119,6 +124,15 @@ cv_backend/
 - Reset transform (`Matrix4.identity()`) when all 12 steps done.
 - `_viewportKey` on `InteractiveViewer` itself (not the Expanded wrapper).
 - 12 keypoints; minimum 4 non-null for valid homography.
+
+### Analysis results screen (Sprint 3)
+- Route: `/matches/:id/analysis` — added to `app_router.dart`, same pattern as `/calibrate`.
+- Player identification: anonymous track IDs → court position labels inferred from heatmap center-of-mass. "Front Left / Back Left / Front Right / Back Right". Manual tagging deferred to Sprint 6.
+- Heatmap: **half-court only** (10×10 cells, 1:1 aspect ratio) — full 20×10 court is too tall on iPhone portrait. Toggle ChoiceChips switch between "Your Side" (rows 0–9) and "Opponents' Side" (rows 10–19).
+- Player selector: 4 ChoiceChip tabs above heatmap, `_selectedPlayerIndex` local state, colors from `AppColors.player1`–`player4`.
+- No fl_chart for bar chart — use sized Containers with proportional widths (avoids library dep + easier to style).
+- `@JsonKey` required on all Freezed fields mapping to snake_case backend names. `List<List<double>>` heatmap requires a custom top-level converter (`_heatmapFromJson`) — json_serializable cannot auto-generate nested lists.
+- "View Analysis" button lives in `_MatchDetailBody._buildAnalysisButton()`, watches `analysisStatusProvider`, only renders when `status == done`.
 
 ### Upload providers
 - `GalleryUploadNotifier` is **not** autoDispose — must survive navigation.

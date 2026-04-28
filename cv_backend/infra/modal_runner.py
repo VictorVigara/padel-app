@@ -16,14 +16,18 @@ app = modal.App("padel-cv-backend")
 # Sprint 2: GPU-enabled image with full CV dependencies
 image = (
     modal.Image.debian_slim(python_version="3.11")
+    .apt_install("libgl1-mesa-glx", "libglib2.0-0")
     .pip_install_from_requirements("cv_backend/requirements.txt")
-    .add_local_python_source("cv_backend")  # copies local package into the container
+    .add_local_python_source(
+        "cv_backend",
+        ignore=["**/__pycache__", "**/*.pyc", "**/*.pyo", "scripts/", ".venv/"],
+    )
 )
 
 
 @app.function(
     image=image,
-    gpu="A10G",  # Sprint 2: GPU required for YOLO tracking
+    gpu="T4",  # Sprint 2: GPU required for YOLO tracking
     secrets=[modal.Secret.from_name("padel-secrets")],
     schedule=modal.Period(seconds=30),
 )

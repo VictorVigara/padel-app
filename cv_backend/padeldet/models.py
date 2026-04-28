@@ -72,20 +72,34 @@ class TrackedDetection(Detection):
     """Detection with a persistent track ID across frames."""
 
     track_id: int | None = None
+    logical_player_id: int | None = None          # stable 1–4 ID from LogicalPlayerManager
+    court_position: tuple[float, float] | None = None  # (x_m, y_m) in court meters
+    ankle_midpoint: tuple[float, float] | None = None  # foot position from pose model
+    visible: bool = True                           # False during occlusion recovery
 
     def serialize(self) -> dict:
         data = super().serialize()
         data["track_id"] = self.track_id
+        data["logical_player_id"] = self.logical_player_id
+        data["court_position"] = list(self.court_position) if self.court_position is not None else None
+        data["ankle_midpoint"] = list(self.ankle_midpoint) if self.ankle_midpoint is not None else None
+        data["visible"] = self.visible
         return data
 
     @classmethod
     def from_dict(cls, d: dict) -> TrackedDetection:
+        amp = d.get("ankle_midpoint")
+        cp = d.get("court_position")
         return cls(
             bbox=BoundingBox(*d["bbox"]),
             confidence=d["confidence"],
             class_id=d["class_id"],
             label=d.get("label", ""),
             track_id=d.get("track_id"),
+            logical_player_id=d.get("logical_player_id"),
+            court_position=tuple(cp) if cp is not None else None,
+            ankle_midpoint=tuple(amp) if amp is not None else None,
+            visible=d.get("visible", True),
         )
 
 

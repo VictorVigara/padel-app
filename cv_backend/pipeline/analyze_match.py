@@ -80,7 +80,7 @@ def analyze_match(
     import numpy as np
     from cv_backend.padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
     from cv_backend.padeldet.video import VideoInfo, frame_generator
-    from cv_backend.pipeline.court_projection import CourtProjection
+    from cv_backend.padeldet.court.projection import CourtProjection
 
     start_time = time.time()
 
@@ -95,15 +95,19 @@ def analyze_match(
     video_info = VideoInfo.from_path(video_path)
 
     # 2. Initialize court projection
-    court_projection = CourtProjection(homography_matrix)
+    court_projection = CourtProjection.from_matrix(np.array(homography_matrix))
 
     # 3. Initialize player tracker
     tracker_config = PlayerTrackerConfig(
-        model_path="yolov8m.pt",  # Auto-downloads on first run
-        confidence=0.5,
-        iou_threshold=0.7,
+        model_path="yolov8m.pt",
+        confidence=0.1,
+        iou_threshold=0.1,
+        imgsz=960,
         batch_size=8,
-        max_players=4,
+        max_players=10,
+        tracker_type="deepocsort",
+        reid_weights="/tmp/osnet_x0_25_msmt17.pt",
+        auto_select_players=True,
     )
     tracker = PlayerTracker(
         config=tracker_config,
@@ -141,12 +145,13 @@ def _aggregate_tracking_results(
     from collections import defaultdict
     import numpy as np
 
-    # Group detections by track_id
+    # Group detections by logical_player_id (stable 1–4) when available, else track_id
     tracks: dict[int, list] = defaultdict(list)
     for fd in frame_detections:
         for det in fd.detections:
-            if det.track_id is not None:
-                tracks[det.track_id].append(det)
+            player_key = det.logical_player_id if det.logical_player_id is not None else det.track_id
+            if player_key is not None:
+                tracks[player_key].append(det)
 
     warnings = []
     if len(tracks) == 0:
@@ -160,9 +165,12 @@ def _aggregate_tracking_results(
         heatmap_grid = np.zeros((20, 10))  # 20m x 10m court, 1m cells
 
         for i, det in enumerate(detections):
-            # Project bottom-center of bbox to court meters
-            bbox_bottom = det.bbox.bottom_center
-            x_m, y_m = court_projection.project_point(bbox_bottom)
+            # Use pre-computed court_position when available (set by tracker with ankle midpoint)
+            if det.court_position is not None:
+                x_m, y_m = det.court_position
+            else:
+                foot_pos = det.ankle_midpoint if det.ankle_midpoint is not None else det.bbox.bottom_center
+                x_m, y_m = court_projection.project_point(foot_pos)
 
             # Only count if inside court bounds
             if court_projection.is_inside_court((x_m, y_m)):

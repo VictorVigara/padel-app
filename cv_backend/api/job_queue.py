@@ -1,3 +1,13 @@
+# DEPRECATED — production logic moved to:
+#   cv_backend/jobs/queue.py    (Supabase state helpers)
+#   cv_backend/jobs/worker.py   (CV pipeline execution)
+#   cv_backend/infra/modal_runner.py  (Modal functions)
+#
+# Kept for local end-to-end testing:
+#   uv run python -m cv_backend.api.job_queue
+#
+# Do NOT import this from modal_runner.py or any production path.
+
 """
 Supabase-based async job queue poller.
 

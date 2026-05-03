@@ -16,15 +16,14 @@ Run locally:
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone  # timedelta/timezone used in upload response
 
-import boto3
-from botocore.config import Config
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from supabase import Client, create_client
 
 from cv_backend.api.models import (
+    AnalyzeRequest,
     CalibrationRequest,
     CalibrationResponse,
     JobStatusResponse,
@@ -32,6 +31,7 @@ from cv_backend.api.models import (
     UploadUrlResponse,
 )
 from cv_backend.pipeline.court_projection import compute_homography
+from cv_backend.storage.r2 import generate_presigned_upload_url
 
 load_dotenv()
 
@@ -46,26 +46,15 @@ if not _SUPABASE_URL or not _SUPABASE_SERVICE_KEY:
 
 supabase: Client = create_client(_SUPABASE_URL, _SUPABASE_SERVICE_KEY)
 
-_R2_ACCOUNT_ID = os.environ.get("CLOUDFLARE_R2_ACCOUNT_ID", "")
-_R2_ACCESS_KEY = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY", "")
-_R2_SECRET_KEY = os.environ.get("CLOUDFLARE_R2_SECRET_KEY", "")
-_R2_BUCKET = os.environ.get("CLOUDFLARE_R2_BUCKET", "padel-match-videos")
 _R2_VIDEO_PREFIX = os.environ.get("CLOUDFLARE_R2_VIDEO_PREFIX", "videos")
 
 
-def _get_r2_client():
-    """Return a boto3 S3 client configured for Cloudflare R2."""
-    return boto3.client(
-        "s3",
-        endpoint_url=f"https://{_R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-        aws_access_key_id=_R2_ACCESS_KEY,
-        aws_secret_access_key=_R2_SECRET_KEY,
-        config=Config(signature_version="s3v4"),
-        region_name="auto",
-    )
-
-
 app = FastAPI(title="Padel CV Backend", version="0.1.0")
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.post("/upload-url", response_model=UploadUrlResponse, status_code=200)
@@ -75,22 +64,15 @@ async def generate_upload_url(request: UploadUrlRequest) -> UploadUrlResponse:
     Flutter calls this first, then PUTs the compressed video directly to the URL.
     The object_key is returned so Flutter can pass it (as a full R2 URL) to POST /analyze.
     """
-    if not _R2_ACCOUNT_ID or not _R2_ACCESS_KEY or not _R2_SECRET_KEY:
-        raise HTTPException(status_code=500, detail="R2 credentials not configured")
-
     object_key = f"{_R2_VIDEO_PREFIX}/{request.match_id}.mp4"
     expires_in = 3600  # 1 hour
 
     try:
-        upload_url = _get_r2_client().generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": _R2_BUCKET,
-                "Key": object_key,
-                "ContentType": request.content_type,
-                "ContentLength": request.content_length,
-            },
-            ExpiresIn=expires_in,
+        upload_url = generate_presigned_upload_url(
+            object_key=object_key,
+            content_type=request.content_type,
+            content_length=request.content_length,
+            expires_in=expires_in,
         )
     except Exception as exc:
         raise HTTPException(
@@ -128,7 +110,7 @@ async def get_analysis_status(job_id: str) -> JobStatusResponse:
     job = job_result.data
     status = job["status"]
 
-    if status != "done":
+    if status not in ("done",):
         return JobStatusResponse(
             status=status,
             error=job.get("error_message"),
@@ -152,7 +134,75 @@ async def get_analysis_status(job_id: str) -> JobStatusResponse:
     if analysis_result.data:
         results = analysis_result.data.get("result")
 
-    return JobStatusResponse(status="done", results=results)
+    return JobStatusResponse(status=status, results=results)
+
+
+@app.post("/analyze", response_model=JobStatusResponse, status_code=201)
+async def start_analysis(request: AnalyzeRequest) -> JobStatusResponse:
+    """
+    Enqueue a match video for analysis.
+
+    Note: Flutter currently creates jobs directly in Supabase via ProcessingJobRepository.
+    This endpoint is an additive convenience route for API-driven flows.
+
+    Idempotent by match_id: returns the existing job if one exists in a non-failed state.
+    Requires a successful court calibration to exist before queueing.
+    """
+    # Require calibration before queueing — prevents an infinite queued state
+    try:
+        cal_result = (
+            supabase.table("court_calibrations")
+            .select("id")
+            .eq("match_id", request.match_id)
+            .eq("status", "success")
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"DB error checking calibration: {exc}"
+        ) from exc
+
+    if not cal_result.data:
+        raise HTTPException(
+            status_code=422,
+            detail="Court calibration not found for this match. Complete calibration before starting analysis.",
+        )
+
+    # Idempotent: return existing non-failed job if one already exists
+    try:
+        existing = (
+            supabase.table("processing_jobs")
+            .select("id, status")
+            .eq("match_id", request.match_id)
+            .neq("status", "failed")
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"DB error checking existing job: {exc}"
+        ) from exc
+
+    if existing.data:
+        return JobStatusResponse(status=existing.data["status"])
+
+    # Create new queued job
+    try:
+        supabase.table("processing_jobs").insert(
+            {
+                "match_id": request.match_id,
+                "video_url": request.video_url,
+                "status": "queued",
+                "retry_count": 0,
+            }
+        ).execute()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create job: {exc}"
+        ) from exc
+
+    return JobStatusResponse(status="queued")
 
 
 @app.post("/calibrate", response_model=CalibrationResponse, status_code=200)

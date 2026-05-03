@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict
 class JobStatusResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    status: Literal["queued", "processing", "done", "failed"]
+    status: Literal["queued", "dispatching", "processing", "done", "failed"]
     progress_pct: float | None = None
     results: dict | None = None   # AnalysisResult serialised as dict when done
     error: str | None = None
@@ -40,6 +40,13 @@ class UploadUrlResponse(BaseModel):
     upload_url: str   # pre-signed PUT URL, valid for 1 hour
     object_key: str   # R2 key: "videos/{match_id}.mp4"
     expires_at: str   # ISO-8601 timestamp
+
+
+class AnalyzeRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    match_id: str
+    video_url: str
 
 
 class CalibrationKeypointInput(BaseModel):

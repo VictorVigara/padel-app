@@ -55,8 +55,11 @@ class UploadRepository {
     required String matchId,
     required int fileSizeBytes,
   }) async {
+    final uri = Uri.parse('$_backendUrl/upload-url');
+    print('[DEBUG] getUploadUrl: POST $uri (matchId=$matchId, size=$fileSizeBytes)');
+
     final response = await http.post(
-      Uri.parse('$_backendUrl/upload-url'),
+      uri,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'match_id': matchId,
@@ -64,6 +67,8 @@ class UploadRepository {
         'content_type': 'video/mp4',
       }),
     );
+
+    print('[DEBUG] getUploadUrl: status=${response.statusCode} body=${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Failed to get upload URL: ${response.body}');

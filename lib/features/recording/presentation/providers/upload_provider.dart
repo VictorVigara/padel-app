@@ -56,8 +56,10 @@ class UploadNotifier extends StateNotifier<UploadState> {
     required String matchId,
     required String videoPath,
   }) async {
+    print('[DEBUG] UploadNotifier.startUpload: matchId=$matchId, path=$videoPath');
     final file = File(videoPath);
     final fileSizeBytes = await file.length();
+    print('[DEBUG] File size: $fileSizeBytes bytes');
 
     state = state.copyWith(
       flowState: UploadFlowState.fetchingUrl,
@@ -71,7 +73,9 @@ class UploadNotifier extends StateNotifier<UploadState> {
         matchId: matchId,
         fileSizeBytes: fileSizeBytes,
       );
+      print('[DEBUG] Got upload URL: ${urlResponse.uploadUrl}');
     } catch (e) {
+      print('[DEBUG] ERROR fetching upload URL: $e');
       state = state.copyWith(
         flowState: UploadFlowState.error,
         errorMessage: 'Could not get upload URL: $e',
@@ -83,6 +87,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
     }
 
     state = state.copyWith(flowState: UploadFlowState.uploading);
+    print('[DEBUG] Starting R2 upload...');
 
     try {
       await for (final progress in _uploadRepo.uploadToR2(
@@ -94,7 +99,9 @@ class UploadNotifier extends StateNotifier<UploadState> {
           totalBytes: progress.totalBytes,
         );
       }
+      print('[DEBUG] R2 upload complete');
     } catch (e) {
+      print('[DEBUG] ERROR during R2 upload: $e');
       state = state.copyWith(
         flowState: UploadFlowState.error,
         errorMessage: 'Upload failed: $e',
@@ -116,6 +123,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
     final videoUrl = r2AccountId.isNotEmpty
         ? 'https://$r2AccountId.r2.cloudflarestorage.com/$r2Bucket/${urlResponse.objectKey}'
         : urlResponse.objectKey;
+    print('[DEBUG] videoUrl for job: $videoUrl');
 
     state = state.copyWith(flowState: UploadFlowState.insertingJob);
     _ref
@@ -123,8 +131,10 @@ class UploadNotifier extends StateNotifier<UploadState> {
         .markInsertingJob();
 
     try {
-      await _jobRepo.insertJob(matchId: matchId, videoUrl: videoUrl);
+      final job = await _jobRepo.insertJob(matchId: matchId, videoUrl: videoUrl);
+      print('[DEBUG] Supabase job inserted: jobId=${job.jobId}');
     } catch (e) {
+      print('[DEBUG] ERROR inserting job in Supabase: $e');
       state = state.copyWith(
         flowState: UploadFlowState.error,
         errorMessage: 'Failed to queue analysis: $e',
@@ -141,6 +151,7 @@ class UploadNotifier extends StateNotifier<UploadState> {
     } catch (_) {}
 
     state = state.copyWith(flowState: UploadFlowState.done);
+    print('[DEBUG] Upload flow complete: done');
     _ref.read(recordingNotifierProvider(matchId).notifier).markDone();
   }
 }

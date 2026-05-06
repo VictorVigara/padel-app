@@ -98,16 +98,16 @@ async def get_analysis_status(job_id: str) -> JobStatusResponse:
             supabase.table("processing_jobs")
             .select("id, match_id, status, error_message")
             .eq("id", job_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch job: {exc}") from exc
 
-    if job_result.data is None:
+    if not job_result.data:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 
-    job = job_result.data
+    job = job_result.data[0]
     status = job["status"]
 
     if status not in ("done",):
@@ -122,7 +122,7 @@ async def get_analysis_status(job_id: str) -> JobStatusResponse:
             supabase.table("match_analyses")
             .select("result")
             .eq("match_id", job["match_id"])
-            .maybe_single()
+            .limit(1)
             .execute()
         )
     except Exception as exc:
@@ -132,7 +132,7 @@ async def get_analysis_status(job_id: str) -> JobStatusResponse:
 
     results: dict | None = None
     if analysis_result.data:
-        results = analysis_result.data.get("result")
+        results = analysis_result.data[0].get("result")
 
     return JobStatusResponse(status=status, results=results)
 
@@ -142,33 +142,11 @@ async def start_analysis(request: AnalyzeRequest) -> JobStatusResponse:
     """
     Enqueue a match video for analysis.
 
-    Note: Flutter currently creates jobs directly in Supabase via ProcessingJobRepository.
-    This endpoint is an additive convenience route for API-driven flows.
-
-    Idempotent by match_id: returns the existing job if one exists in a non-failed state.
-    Requires a successful court calibration to exist before queueing.
+    Idempotent by match_id: returns the existing job if one already exists.
+    If calibration is already done, spawns the GPU worker immediately.
+    If calibration isn't ready yet, leaves the job as queued — POST /calibrate
+    will spawn the GPU worker when calibration completes.
     """
-    # Require calibration before queueing — prevents an infinite queued state
-    try:
-        cal_result = (
-            supabase.table("court_calibrations")
-            .select("id")
-            .eq("match_id", request.match_id)
-            .eq("status", "success")
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"DB error checking calibration: {exc}"
-        ) from exc
-
-    if not cal_result.data:
-        raise HTTPException(
-            status_code=422,
-            detail="Court calibration not found for this match. Complete calibration before starting analysis.",
-        )
-
     # Idempotent: return existing non-failed job if one already exists
     try:
         existing = (
@@ -176,7 +154,7 @@ async def start_analysis(request: AnalyzeRequest) -> JobStatusResponse:
             .select("id, status")
             .eq("match_id", request.match_id)
             .neq("status", "failed")
-            .maybe_single()
+            .limit(1)
             .execute()
         )
     except Exception as exc:
@@ -185,7 +163,7 @@ async def start_analysis(request: AnalyzeRequest) -> JobStatusResponse:
         ) from exc
 
     if existing.data:
-        return JobStatusResponse(status=existing.data["status"])
+        return JobStatusResponse(status=existing.data[0]["status"], job_id=existing.data[0]["id"])
 
     # Create new queued job
     try:
@@ -197,12 +175,42 @@ async def start_analysis(request: AnalyzeRequest) -> JobStatusResponse:
                 "retry_count": 0,
             }
         ).execute()
+        id_result = (
+            supabase.table("processing_jobs")
+            .select("id")
+            .eq("match_id", request.match_id)
+            .eq("status", "queued")
+            .limit(1)
+            .execute()
+        )
+        job_id: str = id_result.data[0]["id"]
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Failed to create job: {exc}"
         ) from exc
 
-    return JobStatusResponse(status="queued")
+    # Spawn GPU worker immediately if calibration already exists
+    try:
+        cal = (
+            supabase.table("court_calibrations")
+            .select("id")
+            .eq("match_id", request.match_id)
+            .eq("status", "success")
+            .limit(1)
+            .execute()
+        )
+        if cal.data:
+            print(f"[analyze] Calibration found for match {request.match_id}, spawning GPU worker for job {job_id}")
+            import modal
+            f = modal.Function.lookup("padel-cv-backend", "process_match_gpu")
+            await f.spawn.aio(job_id)
+            print(f"[analyze] GPU worker spawned for job {job_id}")
+        else:
+            print(f"[analyze] No calibration yet for match {request.match_id}, job {job_id} left as queued")
+    except Exception as spawn_exc:
+        print(f"[analyze] GPU spawn failed (non-fatal): {spawn_exc}")
+
+    return JobStatusResponse(status="queued", job_id=job_id)
 
 
 @app.post("/calibrate", response_model=CalibrationResponse, status_code=200)
@@ -285,6 +293,28 @@ async def calibrate_court(request: CalibrationRequest) -> CalibrationResponse:
                     print(f"Debug: Saved calibration visualization to {output_path}")
             except Exception as e:
                 print(f"Debug visualization failed: {e}")
+
+        # Spawn GPU worker if a queued job already exists for this match
+        try:
+            queued = (
+                supabase.table("processing_jobs")
+                .select("id")
+                .eq("match_id", request.match_id)
+                .eq("status", "queued")
+                .limit(1)
+                .execute()
+            )
+            if queued.data:
+                job_id_to_spawn = queued.data[0]["id"]
+                print(f"[calibrate] Found queued job {job_id_to_spawn}, spawning GPU worker")
+                import modal
+                f = modal.Function.from_name("padel-cv-backend", "process_match_gpu")
+                await f.spawn.aio(job_id_to_spawn)
+                print(f"[calibrate] GPU worker spawned for job {job_id_to_spawn}")
+            else:
+                print(f"[calibrate] No queued job found for match {request.match_id}, GPU not spawned")
+        except Exception as spawn_exc:
+            print(f"[calibrate] GPU spawn failed (non-fatal): {spawn_exc}")
 
         return CalibrationResponse(
             success=True,

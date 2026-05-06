@@ -21,6 +21,7 @@ class JobStatusResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     status: Literal["queued", "dispatching", "processing", "done", "failed"]
+    job_id: str | None = None
     progress_pct: float | None = None
     results: dict | None = None   # AnalysisResult serialised as dict when done
     error: str | None = None

@@ -1,32 +1,45 @@
-import 'package:padel_app/core/network/supabase_client.dart';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:padel_app/features/recording/domain/models/processing_job.dart';
 
-/// Inserts a processing_jobs row so the backend poller can pick it up.
+/// Queues a video for analysis via POST /analyze on the backend.
 class ProcessingJobRepository {
-  ProcessingJobRepository();
+  final String _backendUrl;
 
-  /// Insert a new row in processing_jobs.
-  /// The backend poller picks it up within 30s automatically.
-  ///
-  /// [videoUrl] is the full R2 HTTPS URL:
-  ///   https://{account}.r2.cloudflarestorage.com/{bucket}/{objectKey}
+  ProcessingJobRepository({String? backendUrl})
+      : _backendUrl = backendUrl ??
+            const String.fromEnvironment(
+              'BACKEND_URL',
+              defaultValue: 'http://10.0.2.2:8000',
+            );
+
+  /// Call POST /analyze to queue the job.
+  /// The backend inserts the row and spawns the GPU worker if calibration is ready.
   Future<ProcessingJob> insertJob({
     required String matchId,
     required String videoUrl,
   }) async {
-    // Insert row in Supabase — this makes the job visible in the match history
-    // badge immediately, even before the backend picks it up.
-    final result = await SupabaseConfig.client
-        .from('processing_jobs')
-        .insert({
-          'match_id': matchId,
-          'video_url': videoUrl,
-          'status': 'queued',
-        })
-        .select('id')
-        .single();
+    final uri = Uri.parse('$_backendUrl/analyze');
+    print('[DEBUG] ProcessingJobRepository.insertJob: POST $uri');
 
-    final jobId = result['id'] as String;
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'match_id': matchId,
+        'video_url': videoUrl,
+      }),
+    );
+
+    print('[DEBUG] POST /analyze: status=${response.statusCode} body=${response.body}');
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to queue analysis: ${response.body}');
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final jobId = json['job_id'] as String? ?? matchId;
 
     return ProcessingJob(
       jobId: jobId,

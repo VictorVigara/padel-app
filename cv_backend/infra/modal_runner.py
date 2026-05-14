@@ -43,6 +43,7 @@ worker_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libgl1-mesa-glx", "libglib2.0-0")
     .pip_install_from_requirements("cv_backend/requirements.txt")
+    .pip_install("git+https://github.com/VictorVigara/padeldet.git@main")
     .run_commands(
         # Pre-bake YOLO weights into the image layer so every GPU cold-start
         # doesn't re-download ~52MB from the internet.

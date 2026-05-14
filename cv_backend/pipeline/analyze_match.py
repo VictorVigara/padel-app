@@ -78,9 +78,9 @@ def analyze_match(
     """
     import time
     import numpy as np
-    from cv_backend.padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
-    from cv_backend.padeldet.video import VideoInfo, frame_generator
-    from cv_backend.padeldet.court.projection import CourtProjection
+    from padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
+    from padeldet.video import VideoInfo, frame_generator
+    from padeldet.court.projection import CourtProjection
 
     start_time = time.time()
 

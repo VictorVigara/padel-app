@@ -5,11 +5,12 @@ Modal deployment — three functions.
   process_match_gpu  GPU T4    Video analysis worker (only function with GPU)
 
 Deploy (run from the repo root, not from inside cv_backend/):
-  PYTHONPATH=/home/vvipu/padel/padeldet uv run python -m modal deploy cv_backend/infra/modal_runner.py
+  uv run python -m modal deploy cv_backend/infra/modal_runner.py
 
-  padeldet is bundled as a local source (add_local_python_source), so PYTHONPATH must
-  point to the padeldet repo root so modal can find the package during deploy.
-  The uv venv's modal binary has a stale shebang; use "python -m modal" instead.
+  Prerequisites: padeldet must be installed in the uv venv (code only, no heavy deps):
+    uv pip install --no-deps -e ../padeldet
+  This is a one-time step; the install persists in the venv across deploys.
+  The uv venv's modal binary may have a stale shebang; use "python -m modal" instead.
 
 Flutter --dart-define after deploy:
   BACKEND_URL=https://<yourname>--padel-cv-backend-web.modal.run

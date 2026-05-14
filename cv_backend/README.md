@@ -172,15 +172,17 @@ download is actually implemented. In Sprint 0 the download step is a stub.
 # Authenticate once
 modal token set --token-id $MODAL_TOKEN_ID --token-secret $MODAL_TOKEN_SECRET
 
+# One-time setup: install padeldet (code only) into the uv venv
+uv pip install --no-deps -e ../padeldet
+
 # Deploy (from padel_app/ root)
-PYTHONPATH=../padeldet uv run python -m modal deploy cv_backend/infra/modal_runner.py
+uv run python -m modal deploy cv_backend/infra/modal_runner.py
 ```
 
-**Why `PYTHONPATH=../padeldet`?** The GPU worker image bundles padeldet as a local
-Python source (via `add_local_python_source`). Modal must be able to import the
-`padeldet` package locally at deploy time to copy its source into the image.
-Setting `PYTHONPATH` to the padeldet repo root makes it importable without
-requiring it to be installed in the uv venv.
+**Why `uv pip install --no-deps -e ../padeldet`?** The GPU worker bundles padeldet
+via `add_local_python_source`, which requires padeldet to be importable locally at
+deploy time. `--no-deps` skips torch/ultralytics/boxmot (those are already in
+`requirements.txt`), so this is fast. The install persists in the venv across deploys.
 
 **Why `python -m modal` instead of `modal` directly?** The `modal` binary in the
 uv venv may have a stale shebang from a previous venv path. `python -m modal` is

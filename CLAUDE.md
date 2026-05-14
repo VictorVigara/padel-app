@@ -68,7 +68,8 @@ def analyze_match(video_path: str, config: AnalysisConfig) -> AnalysisResult: ..
 
 **Deploy command** (from `padel_app/`):
 ```bash
-PYTHONPATH=../padeldet uv run python -m modal deploy cv_backend/infra/modal_runner.py
+uv pip install --no-deps -e ../padeldet   # one-time setup
+uv run python -m modal deploy cv_backend/infra/modal_runner.py
 ```
 
 ## DB tables (key ones)

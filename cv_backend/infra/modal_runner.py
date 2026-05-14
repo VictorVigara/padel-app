@@ -5,7 +5,11 @@ Modal deployment — three functions.
   process_match_gpu  GPU T4    Video analysis worker (only function with GPU)
 
 Deploy (run from the repo root, not from inside cv_backend/):
-  modal deploy cv_backend/infra/modal_runner.py
+  PYTHONPATH=/home/vvipu/padel/padeldet uv run python -m modal deploy cv_backend/infra/modal_runner.py
+
+  padeldet is bundled as a local source (add_local_python_source), so PYTHONPATH must
+  point to the padeldet repo root so modal can find the package during deploy.
+  The uv venv's modal binary has a stale shebang; use "python -m modal" instead.
 
 Flutter --dart-define after deploy:
   BACKEND_URL=https://<yourname>--padel-cv-backend-web.modal.run
@@ -43,11 +47,14 @@ worker_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libgl1-mesa-glx", "libglib2.0-0")
     .pip_install_from_requirements("cv_backend/requirements.txt")
-    .pip_install("git+https://github.com/VictorVigara/padeldet.git@main")
     .run_commands(
         # Pre-bake YOLO weights into the image layer so every GPU cold-start
         # doesn't re-download ~52MB from the internet.
         "python -c \"from ultralytics import YOLO; YOLO('yolov8m.pt')\"",
+    )
+    .add_local_python_source(
+        "padeldet",
+        ignore=["**/__pycache__", "**/*.pyc", "**/.venv/**", "**/*.pt", "**/scripts/**", "**/data/**"],
     )
     .add_local_python_source(
         "cv_backend",

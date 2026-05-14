@@ -64,6 +64,13 @@ def analyze_match(video_path: str, config: AnalysisConfig) -> AnalysisResult: ..
 # Switching infra = rewrite only infra/modal_runner.py.
 ```
 
+`analyze_match.py` imports from the `padeldet` package (the sibling repo at `../padeldet/`), not from any file inside `cv_backend/`. All CV improvements go into `padeldet/` and are picked up at the next Modal deploy. The GPU worker bundles padeldet via `add_local_python_source` — no git access needed inside Modal's build sandbox.
+
+**Deploy command** (from `padel_app/`):
+```bash
+PYTHONPATH=../padeldet uv run python -m modal deploy cv_backend/infra/modal_runner.py
+```
+
 ## DB tables (key ones)
 - `processing_jobs`: id, match_id, video_url, status (queued|processing|done|failed), retry_count
 - `match_analyses`: id, match_id, result (JSONB AnalysisResult), created_at

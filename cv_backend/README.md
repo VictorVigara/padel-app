@@ -172,9 +172,19 @@ download is actually implemented. In Sprint 0 the download step is a stub.
 # Authenticate once
 modal token set --token-id $MODAL_TOKEN_ID --token-secret $MODAL_TOKEN_SECRET
 
-# Deploy
-uv run modal deploy cv_backend/infra/modal_runner.py
+# Deploy (from padel_app/ root)
+PYTHONPATH=../padeldet uv run python -m modal deploy cv_backend/infra/modal_runner.py
 ```
+
+**Why `PYTHONPATH=../padeldet`?** The GPU worker image bundles padeldet as a local
+Python source (via `add_local_python_source`). Modal must be able to import the
+`padeldet` package locally at deploy time to copy its source into the image.
+Setting `PYTHONPATH` to the padeldet repo root makes it importable without
+requiring it to be installed in the uv venv.
+
+**Why `python -m modal` instead of `modal` directly?** The `modal` binary in the
+uv venv may have a stale shebang from a previous venv path. `python -m modal` is
+always reliable.
 
 CI/CD (`.github/workflows/deploy-backend.yml`) deploys automatically on every
 push to `main` that touches `cv_backend/` or `pyproject.toml`.
@@ -189,3 +199,25 @@ and the infrastructure. It takes a **local file path** and returns an
 
 Switching GPU providers (Modal → RunPod) means rewriting only
 `cv_backend/infra/modal_runner.py`. The pipeline stays untouched.
+
+---
+
+## padeldet integration
+
+`analyze_match.py` imports from the canonical `padeldet` package (the sibling
+repo at `../padeldet/`) rather than a vendored copy. Two images in
+`modal_runner.py`:
+
+- **`api_image`** (CPU web endpoint) — does not include padeldet or CV deps
+- **`worker_image`** (GPU) — bundles padeldet via `add_local_python_source` and
+  installs its deps (torch, ultralytics, boxmot) from `requirements.txt`
+
+For local CV development, install the cv extras:
+
+```bash
+uv sync --extra cv   # installs padeldet editable from ../padeldet
+```
+
+**Device selection in the CV pipeline** — `PlayerTrackerConfig` has a `device`
+field (`str | None`, default `None`). `None` auto-detects: `"cuda"` on Modal GPU
+workers, `"cpu"` locally. Pass `device="cpu"` to force CPU explicitly.

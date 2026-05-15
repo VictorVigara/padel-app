@@ -40,17 +40,34 @@ class CourtHeatmapPainter extends CustomPainter {
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
-    final midY = size.height / 2;
-    canvas.drawLine(Offset(0, midY), Offset(size.width, midY), interiorPaint);
+    // Half-court is rendered with the NET at the top and the back wall at
+    // the bottom (matches the row slicing in `_halfHeatmap`). In padel the
+    // service line is 3 m from the back wall (≈ 7 m from the net), so on a
+    // 10 m half-court it sits at 7/10 of the height from the top.
+    const serviceLineRatio = 7.0 / 10.0;
+    final serviceLineY = size.height * serviceLineRatio;
+    canvas.drawLine(
+        Offset(0, serviceLineY), Offset(size.width, serviceLineY), interiorPaint);
 
+    // Center service line divides the two service boxes (the area between
+    // the net and the service line), so it runs from the net down to the
+    // service line.
     final midX = size.width / 2;
-    canvas.drawLine(Offset(midX, midY), Offset(midX, size.height), interiorPaint);
+    canvas.drawLine(
+        Offset(midX, 0), Offset(midX, serviceLineY), interiorPaint);
 
     final borderPaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), borderPaint);
+
+    // Net: highlighted top edge so the orientation is unambiguous.
+    final netPaint = Paint()
+      ..color = Colors.amberAccent
+      ..strokeWidth = 4.0
+      ..style = PaintingStyle.stroke;
+    canvas.drawLine(Offset(0, 0), Offset(size.width, 0), netPaint);
   }
 
   @override
@@ -58,38 +75,35 @@ class CourtHeatmapPainter extends CustomPainter {
       oldDelegate.heatmap != heatmap || oldDelegate.playerColor != playerColor;
 }
 
-class CourtHeatmapWidget extends StatefulWidget {
+class CourtHeatmapWidget extends StatelessWidget {
   final List<List<double>> fullHeatmap;
   final Color playerColor;
-
-  /// When true, "Your Side" and "Opponents' Side" row slices are swapped.
-  final bool flipCourt;
+  final bool showYourSide;
+  final ValueChanged<bool> onSideChanged;
 
   const CourtHeatmapWidget({
     super.key,
     required this.fullHeatmap,
     required this.playerColor,
-    this.flipCourt = false,
+    required this.showYourSide,
+    required this.onSideChanged,
   });
 
-  @override
-  State<CourtHeatmapWidget> createState() => _CourtHeatmapWidgetState();
-}
-
-class _CourtHeatmapWidgetState extends State<CourtHeatmapWidget> {
-  bool _showYourSide = true;
-
   List<List<double>> get _halfHeatmap {
-    final full = widget.fullHeatmap;
-    if (full.length < 20) return full;
+    if (fullHeatmap.length < 20) return fullHeatmap;
 
-    final yourRows = full.sublist(0, 10);
-    final oppRows = full.sublist(10, 20);
-
-    if (widget.flipCourt) {
-      return _showYourSide ? oppRows : yourRows;
+    if (showYourSide) {
+      // Near half (rows 0–9), reversed so the net sits at the top of the
+      // display and the near baseline at the bottom.
+      return fullHeatmap.sublist(0, 10).reversed.toList();
     }
-    return _showYourSide ? yourRows : oppRows;
+    // Far half (rows 10–19): net already at top (row 10). Mirror columns
+    // so the display reads from the opponent's own forward-facing POV —
+    // display col 0 = opponent's left.
+    return fullHeatmap
+        .sublist(10, 20)
+        .map((row) => row.reversed.toList())
+        .toList();
   }
 
   @override
@@ -101,14 +115,14 @@ class _CourtHeatmapWidgetState extends State<CourtHeatmapWidget> {
           children: [
             ChoiceChip(
               label: const Text('Your Side'),
-              selected: _showYourSide,
-              onSelected: (_) => setState(() => _showYourSide = true),
+              selected: showYourSide,
+              onSelected: (_) => onSideChanged(true),
             ),
             const SizedBox(width: 8),
             ChoiceChip(
               label: const Text("Opponents' Side"),
-              selected: !_showYourSide,
-              onSelected: (_) => setState(() => _showYourSide = false),
+              selected: !showYourSide,
+              onSelected: (_) => onSideChanged(false),
             ),
           ],
         ),
@@ -118,7 +132,7 @@ class _CourtHeatmapWidgetState extends State<CourtHeatmapWidget> {
           child: CustomPaint(
             painter: CourtHeatmapPainter(
               heatmap: _halfHeatmap,
-              playerColor: widget.playerColor,
+              playerColor: playerColor,
             ),
           ),
         ),

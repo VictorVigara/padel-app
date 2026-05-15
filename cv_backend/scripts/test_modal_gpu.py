@@ -243,10 +243,16 @@ def run_pipeline(
     elif len(tracks) < 4:
         warnings.append(f"Only {len(tracks)} players tracked (expected 4)")
 
+    from padeldet.court.models import COURT_WIDTH, COURT_LENGTH, NET_POSITION
+    cell_size_m = 1.0
+    grid_rows = int(COURT_LENGTH / cell_size_m)
+    grid_cols = int(COURT_WIDTH / cell_size_m)
+    half_cells = int(NET_POSITION / cell_size_m) * grid_cols
+
     players_out = []
     heatmap_pngs: dict[str, bytes] = {}
     for player_key, detections in tracks.items():
-        heatmap_grid = np.zeros((20, 10))
+        heatmap_grid = np.zeros((grid_rows, grid_cols))
         positions_count = 0
         total_distance = 0.0
         prev_pos = None
@@ -260,8 +266,8 @@ def run_pipeline(
 
             if court_projection.is_inside_court((x_m, y_m)):
                 positions_count += 1
-                gy = int(np.clip(y_m, 0, 19.99))
-                gx = int(np.clip(x_m, 0, 9.99))
+                gy = int(np.clip(y_m / cell_size_m, 0, grid_rows - 0.01))
+                gx = int(np.clip(x_m / cell_size_m, 0, grid_cols - 0.01))
                 heatmap_grid[gy, gx] += 1
                 if prev_pos is not None:
                     dx, dy = x_m - prev_pos[0], y_m - prev_pos[1]
@@ -272,7 +278,7 @@ def run_pipeline(
             heatmap_grid /= heatmap_grid.max()
 
         cells_visited = int(np.count_nonzero(heatmap_grid))
-        coverage_pct = cells_visited / 200.0 * 100
+        coverage_pct = cells_visited / half_cells * 100
 
         pid = str(player_key)
         players_out.append({

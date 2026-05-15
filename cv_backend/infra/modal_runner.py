@@ -5,7 +5,12 @@ Modal deployment — three functions.
   process_match_gpu  GPU T4    Video analysis worker (only function with GPU)
 
 Deploy (run from the repo root, not from inside cv_backend/):
-  modal deploy cv_backend/infra/modal_runner.py
+  uv run python -m modal deploy cv_backend/infra/modal_runner.py
+
+  Prerequisites: padeldet must be installed in the uv venv (code only, no heavy deps):
+    uv pip install --no-deps -e ../padeldet
+  This is a one-time step; the install persists in the venv across deploys.
+  The uv venv's modal binary may have a stale shebang; use "python -m modal" instead.
 
 Flutter --dart-define after deploy:
   BACKEND_URL=https://<yourname>--padel-cv-backend-web.modal.run
@@ -47,6 +52,10 @@ worker_image = (
         # Pre-bake YOLO weights into the image layer so every GPU cold-start
         # doesn't re-download ~52MB from the internet.
         "python -c \"from ultralytics import YOLO; YOLO('yolov8m.pt')\"",
+    )
+    .add_local_python_source(
+        "padeldet",
+        ignore=["**/__pycache__", "**/*.pyc", "**/.venv/**", "**/*.pt", "**/scripts/**", "**/data/**"],
     )
     .add_local_python_source(
         "cv_backend",

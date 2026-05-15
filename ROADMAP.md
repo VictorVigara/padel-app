@@ -92,6 +92,13 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
   - [x] Delete raw video from Cloudflare R2 after successful processing
   - [x] Error handling: <4 players warning, 3-retry exhaustion, calibration validation
   - [x] Configurable R2 video prefix, environment variable fixes (CLOUDFLARE_R2_*)
+- [x] **Backend Modal refactor** — branch feature/event-driven-gpu-dispatch (2026-05-06):
+  - [x] Split Modal runner into 3 functions: `web` (CPU ASGI), `run_poller` (CPU dispatcher), `process_match_gpu` (T4 GPU only)
+  - [x] Extracted R2 helpers → `cv_backend/storage/r2.py`, job state logic → `cv_backend/jobs/queue.py`, worker → `cv_backend/jobs/worker.py`
+  - [x] Replaced 30s CPU poller with event-driven GPU dispatch: `POST /analyze` and `POST /calibrate` spawn GPU directly via `modal.Function.from_name().spawn.aio()`
+  - [x] Flutter calls `POST /analyze` instead of inserting directly into Supabase
+  - [x] Handles both orderings (upload-first or calibrate-first) without a poller
+  - [x] Added `/health` endpoint, `dispatching` job status, `job_id` in response
 - [ ] Push notification to phone when done
 - [ ] Processing progress updates (% complete) written to `processing_jobs`
 
@@ -99,7 +106,7 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 
 ---
 
-### Sprint 3 — Results UI (2 weeks) ✓ COMPLETE (2026-04-20)
+### Sprint 3 — Results UI (2 weeks) ✓ COMPLETE (2026-04-20) + backend infra updated 2026-05-06
 **Goal:** Player sees their results in a clear, satisfying way.
 
 - [x] Analysis data layer: Freezed models, `AnalysisRepository`, `analysisResultProvider` — branch `feature/analysis-results-ui`
@@ -200,7 +207,7 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 3. **Cloud GPU for all CV** — phone is camera + display only, no on-device ML
 4. **Async processing always** — upload → queue → notify, never synchronous
 5. **Provider-agnostic CV interface** — `analyze_match()` knows nothing about infrastructure
-6. **Supabase-based job queue** — no Redis, no extra infrastructure needed at this scale
+6. **Supabase-based job queue** — no Redis, no extra infrastructure needed at this scale; event-driven GPU dispatch (no poller) since 2026-05-06
 7. **Delete raw video post-processing** — GDPR + cost requirement, non-negotiable
 8. **1080p 30fps locked recording** — CV consistency over video quality
 

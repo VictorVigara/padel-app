@@ -25,7 +25,10 @@ dependencies = [
 [project.optional-dependencies]
 # Heavy CV deps — install only on GPU workers (Sprint 2+).
 # Not included in base install to keep Modal cold-start fast.
+# Local dev: uv.sources overrides padeldet to the editable local path.
+# CI/Modal: installs from git.
 cv = [
+    "padeldet",             # local dev: resolved via [tool.uv.sources] editable path
     "torch>=2.3.0",
     "ultralytics>=8.3.0",   # YOLO11l
     "boxmot>=11.0.0",        # DeepOCSORT + OSNet embeddings
@@ -41,3 +44,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["cv_backend"]
+
+[tool.uv.sources]
+padeldet = { path = "../padeldet", editable = true }

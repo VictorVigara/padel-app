@@ -16,6 +16,7 @@ class MatchAnalysisScreen extends ConsumerStatefulWidget {
 
 class _MatchAnalysisScreenState extends ConsumerState<MatchAnalysisScreen> {
   int _selectedPlayerIndex = 0;
+  bool _showYourSide = true;
 
   static const _playerColors = [
     AppColors.player1,
@@ -23,6 +24,15 @@ class _MatchAnalysisScreenState extends ConsumerState<MatchAnalysisScreen> {
     AppColors.player3,
     AppColors.player4,
   ];
+
+  // Parses the integer suffix of backend `track_id` strings ("player_3" → 3).
+  // This is the player tracker's logical_player_id: 1=near-left, 2=near-right,
+  // 3=far-left, 4=far-right. Falls back to a large sentinel so unparseable IDs
+  // sort to the end without crashing.
+  static int _logicalId(String trackId) {
+    final m = RegExp(r'(\d+)$').firstMatch(trackId);
+    return m == null ? 999 : int.parse(m.group(1)!);
+  }
 
   String _inferPosition(List<List<double>> heatmap) {
     if (heatmap.isEmpty) return '—';
@@ -119,10 +129,17 @@ class _MatchAnalysisScreenState extends ConsumerState<MatchAnalysisScreen> {
             );
           }
 
-          final players = data.players;
+          // Sort by the player tracker's logical_player_id (parsed from
+          // `track_id` strings like "player_3"). The backend builds the list
+          // in detection-insertion order, so without this sort UI "P1" can
+          // map to logical P3 and the heatmap lands in the wrong half.
+          final players = [...data.players]
+            ..sort((a, b) =>
+                _logicalId(a.trackId).compareTo(_logicalId(b.trackId)));
           final safeIndex =
               _selectedPlayerIndex.clamp(0, players.length - 1);
           final selected = players[safeIndex];
+          final selectedLogicalId = _logicalId(selected.trackId);
           final maxDistance = players
               .map((p) => p.totalDistanceM)
               .reduce((a, b) => a > b ? a : b);
@@ -136,13 +153,17 @@ class _MatchAnalysisScreenState extends ConsumerState<MatchAnalysisScreen> {
                 Wrap(
                   spacing: 8,
                   children: List.generate(players.length, (i) {
-                    final color = _playerColors[i];
+                    final logicalId = _logicalId(players[i].trackId);
+                    final color =
+                        _playerColors[(logicalId - 1).clamp(0, 3)];
                     return ChoiceChip(
-                      label: Text('P${i + 1}'),
+                      label: Text('P$logicalId'),
                       selected: safeIndex == i,
                       selectedColor: color.withAlpha(180),
-                      onSelected: (_) =>
-                          setState(() => _selectedPlayerIndex = i),
+                      onSelected: (_) => setState(() {
+                        _selectedPlayerIndex = i;
+                        _showYourSide = logicalId <= 2;
+                      }),
                     );
                   }),
                 ),
@@ -151,7 +172,10 @@ class _MatchAnalysisScreenState extends ConsumerState<MatchAnalysisScreen> {
                 // Heatmap
                 CourtHeatmapWidget(
                   fullHeatmap: selected.heatmap,
-                  playerColor: _playerColors[safeIndex],
+                  playerColor: _playerColors[
+                      (selectedLogicalId - 1).clamp(0, 3)],
+                  showYourSide: _showYourSide,
+                  onSideChanged: (v) => setState(() => _showYourSide = v),
                 ),
                 const SizedBox(height: 20),
 
@@ -263,7 +287,8 @@ class _DistanceBars extends StatelessWidget {
     return Column(
       children: List.generate(players.length, (i) {
         final p = players[i];
-        final color = playerColors[i];
+        final logicalId = _MatchAnalysisScreenState._logicalId(p.trackId);
+        final color = playerColors[(logicalId - 1).clamp(0, 3)];
         final fraction =
             maxDistance > 0 ? p.totalDistanceM / maxDistance : 0.0;
 
@@ -280,7 +305,7 @@ class _DistanceBars extends StatelessWidget {
               const SizedBox(width: 8),
               SizedBox(
                 width: 36,
-                child: Text('P${i + 1}',
+                child: Text('P$logicalId',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: i == selectedIndex
                             ? FontWeight.bold

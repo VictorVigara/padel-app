@@ -23,6 +23,7 @@ class AnalysisConfig:
     # stride=1 → 162k frames (~8-10 min GPU)
     # stride=10 → 16.2k frames (~1-2 min GPU, but tracking gaps)
     # Surfaced as config to make cost/quality tradeoff explicit.
+    heatmap_cell_size_m: float = 1.0  # Heatmap grid resolution in metres. Smaller = finer grid.
 
 
 @dataclass
@@ -37,7 +38,7 @@ class PlayerAnalysis:
     track_id: str
     total_distance_m: float
     court_coverage_pct: float
-    heatmap: list[list[float]]  # 20×10 grid, values 0–1
+    heatmap: list[list[float]]  # grid[y][x], shape=(COURT_LENGTH/cell_size, COURT_WIDTH/cell_size), values 0–1
     positions: list[Position]   # 1 position per second of match
 
 
@@ -126,6 +127,7 @@ def analyze_match(
         court_projection,
         video_info,
         stride,
+        cell_size_m=config.heatmap_cell_size_m,
     )
 
     duration_s = time.time() - start_time
@@ -140,10 +142,18 @@ def _aggregate_tracking_results(
     court_projection,  # CourtProjection
     video_info,  # VideoInfo from padeldet
     stride: int,
+    cell_size_m: float = 1.0,
 ) -> AnalysisResult:
     """Convert tracking results to AnalysisResult format."""
     from collections import defaultdict
     import numpy as np
+    from padeldet.court.models import COURT_WIDTH, COURT_LENGTH, NET_POSITION
+
+    # Grid dimensions derived from court constants + cell size — no magic numbers.
+    grid_rows = int(COURT_LENGTH / cell_size_m)  # full-court rows (y axis)
+    grid_cols = int(COURT_WIDTH / cell_size_m)   # full-court cols (x axis)
+    half_rows = int(NET_POSITION / cell_size_m)  # rows per half-court (player movement area)
+    half_cells = half_rows * grid_cols            # coverage denominator: one player's half
 
     # Group detections by logical_player_id (stable 1–4) when available, else track_id
     tracks: dict[int, list] = defaultdict(list)
@@ -162,7 +172,7 @@ def _aggregate_tracking_results(
     players = []
     for track_id, detections in tracks.items():
         positions = []
-        heatmap_grid = np.zeros((20, 10))  # 20m x 10m court, 1m cells
+        heatmap_grid = np.zeros((grid_rows, grid_cols))
 
         for i, det in enumerate(detections):
             # Use pre-computed court_position when available (set by tracker with ankle midpoint)
@@ -179,8 +189,8 @@ def _aggregate_tracking_results(
                 positions.append(Position(t=t_s, x=x_m, y=y_m))
 
                 # Update heatmap (clamp to valid grid)
-                grid_y = int(np.clip(y_m, 0, 19.99))
-                grid_x = int(np.clip(x_m, 0, 9.99))
+                grid_y = int(np.clip(y_m / cell_size_m, 0, grid_rows - 0.01))
+                grid_x = int(np.clip(x_m / cell_size_m, 0, grid_cols - 0.01))
                 heatmap_grid[grid_y, grid_x] += 1
 
         # Normalize heatmap to 0-1 range
@@ -195,9 +205,9 @@ def _aggregate_tracking_results(
                 dy = positions[i].y - positions[i-1].y
                 total_distance += np.sqrt(dx*dx + dy*dy)
 
-        # Compute court coverage (% of 1m cells visited)
+        # Coverage relative to half-court: a player's full movement area is one half of the court.
         cells_visited = np.count_nonzero(heatmap_grid)
-        coverage_pct = (cells_visited / 200.0) * 100  # 200 cells total (20m × 10m grid)
+        coverage_pct = (cells_visited / half_cells) * 100
 
         players.append(PlayerAnalysis(
             track_id=f"player_{track_id}",

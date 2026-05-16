@@ -106,18 +106,18 @@ Pro-level padel match analysis from any court, using just your iPhone. No club i
 
 ---
 
-### Sprint 3 — Results UI (2 weeks) ✓ COMPLETE (2026-04-20) + backend infra updated 2026-05-06
+### Sprint 3 — Results UI (2 weeks) ✓ COMPLETE (2026-04-20) + backend infra updated 2026-05-06 + heatmap orientation/player-mapping fix 2026-05-15
 **Goal:** Player sees their results in a clear, satisfying way.
 
 - [x] Analysis data layer: Freezed models, `AnalysisRepository`, `analysisResultProvider` — branch `feature/analysis-results-ui`
 - [x] Results screen scaffold: loading/error/empty/data states, `/matches/:id/analysis` route, "View Analysis" button in match detail
-- [x] Court heatmap: `CourtHeatmapPainter` (half-court 10×10, 1:1), side toggle ("Your Side" / "Opponents' Side"), `flipCourt` param
+- [x] Court heatmap: `CourtHeatmapPainter` (half-court 10×10, 1:1), side toggle ("Your Side" / "Opponents' Side") with auto-toggle on player tap
 - [x] Player selector chips (P1–P4, player colors), 2×2 stat grid (distance / coverage / inferred position), distance comparison bars
+- [x] Heatmap orientation & mapping (2026-05-15, branch `fix/heatmap-orientation-and-player-mapping`): sort players by `logical_player_id` parsed from `track_id`, mirror opponents' half to own-POV, fix service-line position (7/10) and centre service line, derive backend grid dims from court constants, half-court coverage denominator
 - [ ] Processing states: "uploading", "analysing (X% done)", "ready", "failed"
 - [ ] Failed state: clear message, no charge note, option to retry
 - [ ] Basic share: screenshot-friendly results card for WhatsApp/Instagram
 
-**Known:** Opponents' side heatmap is empty — camera only covers near half; CV pipeline issue, not UI.
 
 **Done when:** A padel player who wasn't involved in building the app opens it, records a match, and understands the results without any explanation.
 

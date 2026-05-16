@@ -103,11 +103,11 @@ cv_backend/
 - [x] **Task 0**: Player color constants in `AppColors` (player1–4: green, orange, blue, pink)
 - [x] **Task 1**: Freezed models (`AnalysisResult`, `PlayerAnalysis`, `ProcessingMeta`), `AnalysisRepository`, `analysisResultProvider`
 - [x] **Task 2**: `MatchAnalysisScreen` scaffold — loading/error/empty/data states; `/matches/:id/analysis` route; "View Analysis" button gated on `AnalysisStatus.done`
-- [x] **Task 3**: `CourtHeatmapPainter` — half-court 10×10, cell opacity from intensity, court markings, "Your Side" / "Opponents' Side" ChoiceChip toggle, `flipCourt` param — `lib/features/analysis/presentation/widgets/court_heatmap_painter.dart`
+- [x] **Task 3**: `CourtHeatmapPainter` — half-court 10×10, cell opacity from intensity, court markings, "Your Side" / "Opponents' Side" ChoiceChip toggle — `lib/features/analysis/presentation/widgets/court_heatmap_painter.dart`
 - [x] **Task 4**: Full screen layout — player selector chips (P1–P4, player colors), 2×2 stat grid (distance / coverage / inferred position), distance comparison bars (proportional Containers, no fl_chart)
+- [x] **Task 5** (2026-05-15): Fix heatmap orientation, player-ID mapping, and court markings — see "Analysis results screen" notes below.
 
 ### Known issues / deferred
-- Opponents' side heatmap is always empty — camera only covers the near half; rows 10–19 will have no data until CV pipeline is updated. UI is correct.
 - Manual player tagging (name assignment) deferred to Sprint 6.
 
 ### Still pending from Sprint 2
@@ -136,11 +136,15 @@ cv_backend/
 ### Analysis results screen (Sprint 3)
 - Route: `/matches/:id/analysis` — added to `app_router.dart`, same pattern as `/calibrate`.
 - Player identification: anonymous track IDs → court position labels inferred from heatmap center-of-mass. "Front Left / Back Left / Front Right / Back Right". Manual tagging deferred to Sprint 6.
-- Heatmap: **half-court only** (10×10 cells, 1:1 aspect ratio) — full 20×10 court is too tall on iPhone portrait. Toggle ChoiceChips switch between "Your Side" (rows 0–9) and "Opponents' Side" (rows 10–19).
-- Player selector: 4 ChoiceChip tabs above heatmap, `_selectedPlayerIndex` local state, colors from `AppColors.player1`–`player4`.
+- Backend `track_id` strings (`"player_N"`) carry the player tracker's `logical_player_id` (1=near-left, 2=near-right, 3=far-left, 4=far-right). The screen **parses and sorts by that integer** before building chips — `data.players` arrives in detection-insertion order from a `defaultdict`, so without the sort UI's "P1" can map to logical P3 and the heatmap lands in the wrong half.
+- Heatmap: **half-court only** (10×10 cells, 1:1 aspect ratio) — full 20×10 court is too tall on iPhone portrait. "Your Side" = rows 0–9 reversed (net at top of display), "Opponents' Side" = rows 10–19 with **columns mirrored** so each team is displayed from its own forward-facing POV (display col 0 = the player's own left).
+- `_showYourSide` lives on `_MatchAnalysisScreenState` (lifted out of the widget) and **auto-toggles** when a chip is tapped: `_showYourSide = logicalId <= 2`. Manual chip taps still work via `onSideChanged`.
+- Court markings in `CourtHeatmapPainter`: amber net edge along the top, service line at **7/10** of the half-court height (3 m from the back wall, not the net), centre service line drawn between net and service line (it divides the two service boxes).
+- Player selector: 4 ChoiceChip tabs above heatmap, labels and colors keyed by parsed `logicalId` (not list index), colors from `AppColors.player1`–`player4`.
 - No fl_chart for bar chart — use sized Containers with proportional widths (avoids library dep + easier to style).
 - `@JsonKey` required on all Freezed fields mapping to snake_case backend names. `List<List<double>>` heatmap requires a custom top-level converter (`_heatmapFromJson`) — json_serializable cannot auto-generate nested lists.
 - "View Analysis" button lives in `_MatchDetailBody._buildAnalysisButton()`, watches `analysisStatusProvider`, only renders when `status == done`.
+- Backend heatmap pipeline: `AnalysisConfig.heatmap_cell_size_m` (default 1.0) controls resolution; grid dims and coverage denominator are derived from `COURT_LENGTH` / `COURT_WIDTH` / `NET_POSITION` in `padeldet.court.models` — no hard-coded 20×10 / 200. Coverage % is computed against one half-court (`half_rows * grid_cols`), since a player only ever occupies their own half.
 
 ### Upload providers
 - `GalleryUploadNotifier` is **not** autoDispose — must survive navigation.

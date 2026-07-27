@@ -186,8 +186,10 @@ def run_pipeline(
     keypoints: dict | None = None,
     detector: str = "rfdetr",
     tracker_type: str = "bytetrack",
+    debug_overlay: bool = False,
 ) -> dict:
     """Run the tracker once; return stats, heatmap PNGs, and annotated video."""
+    import logging
     import tempfile
     import time
     from collections import defaultdict
@@ -251,14 +253,32 @@ def run_pipeline(
     )
 
     # ── single tracking pass ────────────────────────────────────────────────
+    # Capture the identity manager's per-frame [frame N] decision logs so they
+    # can be drawn on the annotated video (--debug-overlay). Those records are
+    # emitted at DEBUG/INFO; raise the root level to DEBUG while tracking.
+    log_capture = None
+    prev_level = logging.getLogger().level
+    if debug_overlay:
+        from padeldet.player_tracker.debug_overlay import FrameLogCapture
+        log_capture = FrameLogCapture(level=logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger().addHandler(log_capture)
+
     start_time = time.time()
     frames = list(frame_generator(video_path, stride=fps_sample_rate))
-    frame_detections = tracker.detect_and_track(iter(frames))
+    try:
+        frame_detections = tracker.detect_and_track(iter(frames))
+    finally:
+        if log_capture is not None:
+            logging.getLogger().removeHandler(log_capture)
+            logging.getLogger().setLevel(prev_level)
     duration_s = time.time() - start_time
 
     # ── annotated video ─────────────────────────────────────────────────────
+    debug_lines = dict(log_capture.by_frame) if log_capture is not None else None
     annotated_video_bytes = _render_annotated_video(
-        frames, frame_detections, court_projection, video_info, fps_sample_rate
+        frames, frame_detections, court_projection, video_info, fps_sample_rate,
+        debug_lines=debug_lines,
     )
 
     # ── aggregate stats ─────────────────────────────────────────────────────
@@ -351,11 +371,18 @@ def _render_annotated_video(
     court_projection,
     video_info,
     stride: int,
+    debug_lines: dict | None = None,
 ) -> bytes:
-    """Draw bounding boxes, ankle dots, player IDs, and mini-court on each frame."""
+    """Draw bounding boxes, ankle dots, player IDs, and mini-court on each frame.
+
+    If `debug_lines` is given (a {frame_index: [str, ...]} map captured from the
+    identity manager's per-frame `[frame N]` log records), those decision lines
+    are drawn in the top-left corner so the reassignment reasoning is visible.
+    """
     import cv2
     import tempfile
     from padeldet.court.projection import draw_mini_court
+    from padeldet.player_tracker.debug_overlay import draw_log_overlay
 
     fd_map = {fd.frame_index: fd for fd in frame_detections}
     h, w = frames[0].shape[:2]
@@ -368,7 +395,12 @@ def _render_annotated_video(
 
     for i, frame in enumerate(frames):
         img = frame.copy()
-        fd = fd_map.get(i * stride)
+        # `frames` is the already-subsampled list handed to detect_and_track(),
+        # which assigns frame_index = 0,1,2,… (start_frame=0, stride=1 defaults).
+        # So the render list is 1:1 with frame_detections — index directly by i.
+        # (Multiplying by the sampling stride here mismatched the keys, leaving
+        # most frames unannotated and the rest showing the wrong frame's boxes.)
+        fd = fd_map.get(i)
 
         if fd is not None:
             for det in fd.detections:
@@ -397,6 +429,10 @@ def _render_annotated_video(
 
             # Mini-court overlay (bottom-right corner)
             draw_mini_court(img, court_projection, fd)
+
+        # Identity-manager decision log for this frame (top-left corner).
+        if debug_lines is not None:
+            draw_log_overlay(img, debug_lines.get(i, []))
 
         writer.write(img)
 
@@ -454,6 +490,7 @@ def main(
     get_selection_frame: bool = False,
     detector: str = "rfdetr",
     tracker_type: str = "bytetrack",
+    debug_overlay: bool = False,
 ):
     """
     Parameters
@@ -466,9 +503,10 @@ def main(
     stride               : fps_sample_rate — 1 = every frame, 5 = every 5th frame
     get_selection_frame  : download the best selection frame to output/selection_frame.jpg
     detector             : "rfdetr" (default) or "yolo"
-    tracker_type         : "bytetrack" (default) or "deepocsort" — deepocsort's ReID
-                           wiring is currently broken (crashes; see CV-003 in BUGS.md),
-                           kept available for when that's fixed
+    tracker_type         : "bytetrack" (default) or "deepocsort" (OSNet ReID)
+    debug_overlay        : draw the identity manager's per-frame [frame N] decision
+                           logs (direct_track_id / same_role / proximity / side-change
+                           gate / state snapshot) onto the annotated video
 
     To change GPU: edit GPU_TYPE at the top of this file (T4 | A10G | A100).
     """
@@ -555,6 +593,7 @@ def main(
         keypoints=kp_dict,
         detector=detector,
         tracker_type=tracker_type,
+        debug_overlay=debug_overlay,
     )
 
     # Print results

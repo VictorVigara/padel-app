@@ -31,7 +31,7 @@ cv = [
     "padeldet",             # local dev: resolved via [tool.uv.sources] editable path
     "torch>=2.3.0",
     "ultralytics>=8.3.0",   # YOLO11l
-    "boxmot>=11.0.0",        # DeepOCSORT + OSNet embeddings
+    "boxmot>=19.0.0,<20.0.0",  # DeepOCSORT + OSNet embeddings; pinned below 20 — see CV-001 in BUGS.md
 ]
 dev = [
     "pytest>=8.3.0",

@@ -20,8 +20,9 @@ opencv-python==4.13.0.92
 # Player tracking dependencies (from padeldet)
 torch>=2.0.0
 ultralytics>=8.0.0
+rfdetr>=1.7.1
 supervision>=0.18.0
-boxmot>=10.0.0
+boxmot>=19.0.0,<20.0.0
 scipy>=1.10.0
 tqdm>=4.65.0
 

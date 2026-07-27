@@ -21,6 +21,9 @@ pipeline runs end-to-end but player court positions will be wrong.
 GPU options (default A10G):
   modal run cv_backend/scripts/test_modal_gpu.py --video clip.mp4 --gpu T4
   modal run cv_backend/scripts/test_modal_gpu.py --video clip.mp4 --gpu A100
+
+Detector backend (default rfdetr; padeldet's PlayerTrackerConfig default):
+  modal run cv_backend/scripts/test_modal_gpu.py --video clip.mp4 --detector yolo
 """
 
 from __future__ import annotations
@@ -32,17 +35,24 @@ from pathlib import Path
 import modal
 
 # ---------------------------------------------------------------------------
-# Modal image — mirrors modal_runner.py exactly
+# Modal image — CV deps only (no Supabase/boto3; this script talks to neither).
+# Pulled from padeldet's own requirements.txt, the canonical CV dependency set —
+# also keeps this image conflict-free (e.g. boxmot>=22 needs rich>=15, which
+# collides with supabase's pyiceberg<15 pin if both end up in one image).
 # ---------------------------------------------------------------------------
 
 _REQUIREMENTS = str(
-    Path(__file__).parent.parent.parent / "cv_backend" / "requirements.txt"
+    Path(__file__).parent.parent.parent.parent / "padeldet" / "requirements.txt"
 )
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libgl1-mesa-glx", "libglib2.0-0")
     .pip_install_from_requirements(_REQUIREMENTS)
+    .add_local_python_source(
+        "padeldet",
+        ignore=["**/__pycache__", "**/*.pyc", "**/*.pyo", "**/.venv/**", "**/*.pt", "**/data/**"],
+    )
     .add_local_python_source(
         "cv_backend",
         ignore=["**/__pycache__", "**/*.pyc", "**/*.pyo", "scripts/", "infra/", ".venv/"],
@@ -83,6 +93,8 @@ def get_selection_frame(
     homography: list[list[float]],
     fps_sample_rate: int,
     keypoints: dict | None = None,
+    detector: str = "rfdetr",
+    tracker_type: str = "bytetrack",
 ) -> bytes:
     """Process the selection window, return the best frame annotated with track IDs as JPEG."""
     import tempfile
@@ -91,10 +103,11 @@ def get_selection_frame(
     import cv2
     import numpy as np
 
-    from cv_backend.padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
-    from cv_backend.padeldet.video import VideoInfo, frame_generator
-    from cv_backend.padeldet.court.projection import CourtProjection
-    from cv_backend.padeldet.court.models import CourtKeypoints
+    from padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
+    from padeldet.match_profile import MATCH_PROFILES
+    from padeldet.video import VideoInfo, frame_generator
+    from padeldet.court.projection import CourtProjection
+    from padeldet.court.models import CourtKeypoints
 
     if video_bytes is not None:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
@@ -107,18 +120,26 @@ def get_selection_frame(
         raise ValueError("Provide either video_bytes or volume_path.")
 
     video_info = VideoInfo.from_path(video_path)
+    profile = MATCH_PROFILES["doubles"]
     if keypoints is not None:
-        court_projection = CourtProjection(CourtKeypoints.from_dict(keypoints))
+        court_projection = CourtProjection(
+            CourtKeypoints.from_dict(keypoints),
+            width_m=profile.court.width_m,
+            length_m=profile.court.length_m,
+        )
     else:
-        court_projection = CourtProjection.from_matrix(np.array(homography))
+        court_projection = CourtProjection.from_matrix(
+            np.array(homography), width_m=profile.court.width_m, length_m=profile.court.length_m
+        )
 
     tracker_config = PlayerTrackerConfig(
+        detector_type=detector,
         model_path="yolo26m.pt",
         confidence=0.1,
         iou_threshold=0.1,
         imgsz=960,
         batch_size=8,
-        tracker_type="deepocsort",
+        tracker_type=tracker_type,
         reid_weights="/tmp/osnet_x0_25_msmt17.pt",
         auto_select_players=True,
     )
@@ -163,6 +184,8 @@ def run_pipeline(
     homography: list[list[float]],
     fps_sample_rate: int,
     keypoints: dict | None = None,
+    detector: str = "rfdetr",
+    tracker_type: str = "bytetrack",
 ) -> dict:
     """Run the tracker once; return stats, heatmap PNGs, and annotated video."""
     import tempfile
@@ -173,10 +196,11 @@ def run_pipeline(
     import cv2
     import numpy as np
 
-    from cv_backend.padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
-    from cv_backend.padeldet.video import VideoInfo, frame_generator
-    from cv_backend.padeldet.court.projection import CourtProjection, draw_mini_court
-    from cv_backend.padeldet.court.models import CourtKeypoints
+    from padeldet.player_tracker.player_tracker import PlayerTracker, PlayerTrackerConfig
+    from padeldet.match_profile import MATCH_PROFILES
+    from padeldet.video import VideoInfo, frame_generator
+    from padeldet.court.projection import CourtProjection, draw_mini_court
+    from padeldet.court.models import CourtKeypoints
 
     # ── resolve video path ──────────────────────────────────────────────────
     if video_bytes is not None:
@@ -196,19 +220,27 @@ def run_pipeline(
 
     # ── init components ─────────────────────────────────────────────────────
     video_info = VideoInfo.from_path(video_path)
+    profile = MATCH_PROFILES["doubles"]
     if keypoints is not None:
-        court_projection = CourtProjection(CourtKeypoints.from_dict(keypoints))
+        court_projection = CourtProjection(
+            CourtKeypoints.from_dict(keypoints),
+            width_m=profile.court.width_m,
+            length_m=profile.court.length_m,
+        )
     else:
-        court_projection = CourtProjection.from_matrix(np.array(homography))
+        court_projection = CourtProjection.from_matrix(
+            np.array(homography), width_m=profile.court.width_m, length_m=profile.court.length_m
+        )
 
     tracker_config = PlayerTrackerConfig(
+        detector_type=detector,
         model_path="yolov8m.pt",
         confidence=0.1,
         iou_threshold=0.1,
         imgsz=960,
         batch_size=8,
         max_players=10,
-        tracker_type="deepocsort",
+        tracker_type=tracker_type,
         reid_weights="/tmp/osnet_x0_25_msmt17.pt",
         auto_select_players=True,
     )
@@ -243,11 +275,10 @@ def run_pipeline(
     elif len(tracks) < 4:
         warnings.append(f"Only {len(tracks)} players tracked (expected 4)")
 
-    from padeldet.court.models import COURT_WIDTH, COURT_LENGTH, NET_POSITION
     cell_size_m = 1.0
-    grid_rows = int(COURT_LENGTH / cell_size_m)
-    grid_cols = int(COURT_WIDTH / cell_size_m)
-    half_cells = int(NET_POSITION / cell_size_m) * grid_cols
+    grid_rows = int(profile.court.length_m / cell_size_m)
+    grid_cols = int(profile.court.width_m / cell_size_m)
+    half_cells = int((profile.court.length_m / 2) / cell_size_m) * grid_cols
 
     players_out = []
     heatmap_pngs: dict[str, bytes] = {}
@@ -324,7 +355,7 @@ def _render_annotated_video(
     """Draw bounding boxes, ankle dots, player IDs, and mini-court on each frame."""
     import cv2
     import tempfile
-    from cv_backend.padeldet.court.projection import draw_mini_court
+    from padeldet.court.projection import draw_mini_court
 
     fd_map = {fd.frame_index: fd for fd in frame_detections}
     h, w = frames[0].shape[:2]
@@ -421,6 +452,8 @@ def main(
     keypoints: str = "",
     stride: int = 1,
     get_selection_frame: bool = False,
+    detector: str = "rfdetr",
+    tracker_type: str = "bytetrack",
 ):
     """
     Parameters
@@ -432,6 +465,10 @@ def main(
                            from the video's directory if not supplied)
     stride               : fps_sample_rate — 1 = every frame, 5 = every 5th frame
     get_selection_frame  : download the best selection frame to output/selection_frame.jpg
+    detector             : "rfdetr" (default) or "yolo"
+    tracker_type         : "bytetrack" (default) or "deepocsort" — deepocsort's ReID
+                           wiring is currently broken (crashes; see CV-003 in BUGS.md),
+                           kept available for when that's fixed
 
     To change GPU: edit GPU_TYPE at the top of this file (T4 | A10G | A100).
     """
@@ -492,6 +529,8 @@ def main(
             homography=H,
             fps_sample_rate=stride,
             keypoints=kp_dict,
+            detector=detector,
+            tracker_type=tracker_type,
         )
         out_path = out_dir / "selection_frame.jpg"
         out_path.write_bytes(jpg_bytes)
@@ -501,6 +540,8 @@ def main(
     # ── Mode 2: full pipeline ───────────────────────────────────────────────
     print(f"\n--- Modal GPU Benchmark ---")
     print(f"GPU:         {GPU_TYPE}")
+    print(f"Detector:    {detector}")
+    print(f"Tracker:     {tracker_type}")
     print(f"Stride:      {stride} (every {stride} frame(s))")
     print(f"Homography:  {h_source}")
     print(f"Source:      {video or volume_path}")
@@ -512,6 +553,8 @@ def main(
         homography=H,
         fps_sample_rate=stride,
         keypoints=kp_dict,
+        detector=detector,
+        tracker_type=tracker_type,
     )
 
     # Print results

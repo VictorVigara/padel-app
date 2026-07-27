@@ -187,6 +187,7 @@ def run_pipeline(
     detector: str = "rfdetr",
     tracker_type: str = "bytetrack",
     debug_overlay: bool = False,
+    max_frames: int = 0,
 ) -> dict:
     """Run the tracker once; return stats, heatmap PNGs, and annotated video."""
     import logging
@@ -266,6 +267,8 @@ def run_pipeline(
 
     start_time = time.time()
     frames = list(frame_generator(video_path, stride=fps_sample_rate))
+    if max_frames > 0:
+        frames = frames[:max_frames]  # short-run cap for fast iteration
     try:
         frame_detections = tracker.detect_and_track(iter(frames))
     finally:
@@ -491,6 +494,7 @@ def main(
     detector: str = "rfdetr",
     tracker_type: str = "bytetrack",
     debug_overlay: bool = False,
+    max_frames: int = 0,
 ):
     """
     Parameters
@@ -594,6 +598,7 @@ def main(
         detector=detector,
         tracker_type=tracker_type,
         debug_overlay=debug_overlay,
+        max_frames=max_frames,
     )
 
     # Print results
